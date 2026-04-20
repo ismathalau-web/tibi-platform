@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { formatXOF } from '@/lib/format';
 import { createSale, sendInvoiceEmail } from './actions';
 import { BarcodeScanner } from './barcode-scanner';
-import { usePosLocale } from '@/lib/i18n/use-pos-locale';
 import { CustomerPicker } from './customer-picker';
 import type { PosItem } from '@/lib/data/pos';
 import type { Employee } from '@/lib/supabase/types';
@@ -44,7 +43,6 @@ const paymentMethods = [
 type PaymentMethod = (typeof paymentMethods)[number]['id'];
 
 export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Props) {
-  const { t, locale } = usePosLocale();
   const initialCart: CartLine[] = preorderSeed
     ? preorderSeed.items
         .map((it) => {
@@ -161,10 +159,10 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
 
   async function complete() {
     setErr(null);
-    if (cart.length === 0) return setErr(t('emptyCart'));
-    if (!sellerName) return setErr(t('seller'));
-    if (discountNum > 0 && !discountReason.trim()) return setErr(t('discountReasonRequired'));
-    if (paymentMethod === 'other' && !paymentOther.trim()) return setErr(t('paymentOtherRequired'));
+    if (cart.length === 0) return setErr('Cart is empty.');
+    if (!sellerName) return setErr('Select a seller.');
+    if (discountNum > 0 && !discountReason.trim()) return setErr('Reason required for discount.');
+    if (paymentMethod === 'other' && !paymentOther.trim()) return setErr('Please specify the payment method.');
 
     start(async () => {
       const res = await createSale({
@@ -233,13 +231,9 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
     <div className="flex flex-col h-[calc(100dvh-49px)]">
       {todayClosed && (
         <div className="bg-warning-bg border-b border-hairline border-warning-fg/30 px-5 py-2.5 text-[12px] text-warning-fg flex items-center gap-2">
-          <span className="font-medium">
-            {locale === 'fr' ? 'Journée clôturée' : 'Day closed'}
-          </span>
+          <span className="font-medium">Day closed</span>
           <span className="text-warning-fg/80">
-            {locale === 'fr'
-              ? '— les nouvelles ventes seront incluses dans la clôture de demain.'
-              : '— new sales will be included in tomorrow\u2019s close.'}
+            — new sales will be included in tomorrow&rsquo;s close.
           </span>
         </div>
       )}
@@ -251,12 +245,12 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('searchPlaceholder')}
+              placeholder="Search by name, brand, SKU…"
               className="tibi-input w-full"
             />
           </div>
           <Button type="button" variant="secondary" onClick={() => setScanning((s) => !s)}>
-            {scanning ? t('stopScan') : t('scan')}
+            {scanning ? 'Stop scan' : 'Scan'}
           </Button>
         </div>
 
@@ -305,7 +299,7 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
           )}
           <ul className="divide-y divide-divider">
             {visible.length === 0 ? (
-              <li className="px-5 py-10 text-center text-ink-hint text-[13px]">{t('noItems')}</li>
+              <li className="px-5 py-10 text-center text-ink-hint text-[13px]">No items.</li>
             ) : (
               visible.map((it) => {
                 const soldOut = it.stock_qty <= 0;
@@ -326,7 +320,7 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
                     <div className="text-right shrink-0 w-[110px]">
                       <div className="text-[14px] font-medium tabular-nums tracking-tight">{formatXOF(it.retail_price_xof)}</div>
                       <div className={`text-[10px] mt-0.5 ${soldOut ? 'text-danger-fg font-medium' : 'text-ink-hint'}`}>
-                        {soldOut ? t('soldOut') : `${it.stock_qty} ${t('left')}`}
+                        {soldOut ? 'Sold out' : `${it.stock_qty} in stock`}
                       </div>
                     </div>
                     <button
@@ -334,7 +328,7 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
                       disabled={soldOut}
                       className="tibi-btn tibi-btn-primary h-10 px-5 min-w-[88px] shrink-0 shadow-sm group-hover:shadow-md transition-shadow"
                     >
-                      {soldOut ? '—' : t('add')}
+                      {soldOut ? '—' : 'Add'}
                     </button>
                   </li>
                 );
@@ -347,15 +341,15 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
       <section className="flex flex-col min-h-0 bg-surface/60">
         <div className="px-5 py-4 border-b border-hairline border-border flex items-center justify-between shrink-0 bg-bg">
           <span className={`tibi-label transition-colors ${cartPulse ? 'text-accent' : ''}`}>
-            {t('cart')} {cart.length > 0 && `· ${cart.length} ${cart.length > 1 ? t('items') : t('item')}`}
+            Cart {cart.length > 0 && `· ${cart.length} ${cart.length > 1 ? 'items' : 'item'}`}
           </span>
           {cart.length > 0 && (
-            <button className="text-[11px] text-ink-secondary hover:text-danger-fg" onClick={() => setCart([])}>{t('clear')}</button>
+            <button className="text-[11px] text-ink-secondary hover:text-danger-fg" onClick={() => setCart([])}>Clear</button>
           )}
         </div>
         <div ref={cartScrollRef} className="flex-1 min-h-0 overflow-y-auto">
           {cart.length === 0 ? (
-            <div className="p-10 text-center text-[12px] text-ink-hint">{t('addItemsHint')}</div>
+            <div className="p-10 text-center text-[12px] text-ink-hint">Add items to start a sale.</div>
           ) : (
             <ul className="divide-y divide-divider">
               {cart.map((l) => (
@@ -389,7 +383,7 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
           <div className="flex gap-3">
             <div className="flex-1">
               <Input
-                label={t('discountPct')}
+                label="Discount (%)"
                 type="number"
                 min="0"
                 max="100"
@@ -401,40 +395,40 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
             </div>
             <div className="flex-1">
               <Input
-                label={t('reason')}
+                label="Reason"
                 value={discountReason}
                 onChange={(e) => setDiscountReason(e.target.value)}
-                placeholder={discountNum > 0 ? t('required') : t('optional')}
+                placeholder={discountNum > 0 ? 'Required' : 'Optional'}
               />
             </div>
           </div>
 
           <div className="rounded-card border border-hairline border-border bg-surface/70 px-4 py-3 flex flex-col gap-1.5">
             <div className="flex justify-between text-ink-secondary">
-              <span>{t('subtotal')}</span><span className="tabular-nums">{formatXOF(subtotal)}</span>
+              <span>Subtotal</span><span className="tabular-nums">{formatXOF(subtotal)}</span>
             </div>
             {discountNum > 0 && (
               <div className="flex justify-between text-ink-secondary">
-                <span>{t('discount')}</span><span className="tabular-nums">−{formatXOF(discountNum)}</span>
+                <span>Discount</span><span className="tabular-nums">−{formatXOF(discountNum)}</span>
               </div>
             )}
             <div className="flex justify-between items-baseline pt-1.5 border-t border-hairline border-border">
-              <span className="text-[11px] uppercase tracking-[0.14em] text-ink-secondary">{t('total')}</span>
+              <span className="text-[11px] uppercase tracking-[0.14em] text-ink-secondary">Total</span>
               <span className="font-medium text-ink text-[22px] tabular-nums tracking-tight">{formatXOF(total)}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 pt-2">
-            <Select label={t('payment')} value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+            <Select label="Payment" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
               {paymentMethods.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </Select>
             {paymentMethod === 'other' ? (
-              <Input label={t('specify')} value={paymentOther} onChange={(e) => setPaymentOther(e.target.value)} />
+              <Input label="Specify" value={paymentOther} onChange={(e) => setPaymentOther(e.target.value)} />
             ) : <div />}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Select label={t('seller')} value={sellerName} onChange={(e) => setSellerName(e.target.value)}>
+            <Select label="Seller" value={sellerName} onChange={(e) => setSellerName(e.target.value)}>
               {employees.map((e) => <option key={e.id} value={e.name}>{e.name}</option>)}
             </Select>
             <CustomerPicker
@@ -444,19 +438,19 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
               onName={setCustomerName}
               onEmail={setCustomerEmail}
               onPhone={setCustomerPhone}
-              label={t('customerOptional')}
+              label="Customer (optional)"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Input label="Customer email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
             <Input label="Customer phone" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
           </div>
-          <Textarea label={t('notes')} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <Textarea label="Notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
           {err && <Badge tone="danger" className="self-start">{err}</Badge>}
 
           <Button onClick={complete} disabled={isPending || cart.length === 0} fullWidth className="h-14 text-[15px] font-medium shadow-sm hover:shadow-md active:scale-[0.99] transition-all">
-            {isPending ? t('completing') : `${t('completeSale')} · ${formatXOF(total)}`}
+            {isPending ? 'Completing…' : `Complete Sale · ${formatXOF(total)}`}
           </Button>
         </div>
       </section>
@@ -492,18 +486,17 @@ function PostSaleModal({
   whatsappLink: string;
   onClose: () => void;
 }) {
-  const { t } = usePosLocale();
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-4 z-50">
       <div className="bg-bg rounded-card w-full max-w-[440px] p-6 flex flex-col gap-4">
         <div className="text-center">
-          <div className="tibi-label mb-2">{t('saleComplete')}</div>
+          <div className="tibi-label mb-2">Sale complete</div>
           <div className="text-[28px] font-medium">{formatXOF(total)}</div>
-          <div className="text-[12px] text-ink-secondary mt-1">{t('invoiceNo')} #{invoiceNo}</div>
+          <div className="text-[12px] text-ink-secondary mt-1">Invoice #{invoiceNo}</div>
         </div>
 
         <div className="border-t border-hairline border-divider pt-4 flex flex-col gap-3">
-          <span className="tibi-label">{t('sendTo')}</span>
+          <span className="tibi-label">Send to</span>
           <div className="flex gap-2">
             <input
               type="email"
@@ -513,20 +506,20 @@ function PostSaleModal({
               className="tibi-input flex-1"
             />
             <Button variant="secondary" onClick={sendToCustomer} disabled={!emailRecipient || sendStatus === 'sending'}>
-              {sendStatus === 'sending' ? t('sending') : t('send')}
+              {sendStatus === 'sending' ? 'Sending…' : 'Send'}
             </Button>
           </div>
-          {sendStatus === 'sent' && <Badge tone="success" className="self-start">{t('sent')}</Badge>}
-          {sendStatus === 'error' && <Badge tone="warning" className="self-start">{t('errorSend')}</Badge>}
+          {sendStatus === 'sent' && <Badge tone="success" className="self-start">Sent</Badge>}
+          {sendStatus === 'error' && <Badge tone="warning" className="self-start">Couldn&rsquo;t send</Badge>}
           <a href={whatsappLink} target="_blank" rel="noreferrer" className="tibi-btn tibi-btn-secondary">
-            {t('sendWhatsapp')}
+            Send on WhatsApp
           </a>
           <a href={`/api/invoice/${saleId}`} target="_blank" rel="noreferrer" className="text-[12px] text-ink-secondary hover:text-ink text-center underline-offset-2 hover:underline">
-            {t('downloadInvoice')}
+            Download invoice
           </a>
         </div>
 
-        <Button onClick={onClose} fullWidth>{t('newSale')}</Button>
+        <Button onClick={onClose} fullWidth>New sale</Button>
       </div>
     </div>
   );
