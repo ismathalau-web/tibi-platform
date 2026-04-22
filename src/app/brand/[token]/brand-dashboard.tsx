@@ -148,7 +148,7 @@ export function BrandDashboard({ summary: initialSummary, stock: initialStock, p
                   onClick={() => setFilter(f)}
                   className={`text-[11px] px-3 h-7 rounded-pill border-hairline border ${filter === f ? 'bg-ink text-white border-ink' : 'border-border text-ink-secondary'}`}
                 >
-                  {f === 'all' ? 'All' : f === 'in_stock' ? 'In stock' : 'Sold'}
+                  {f === 'all' ? 'All' : f === 'in_stock' ? 'In stock' : 'Sold out'}
                 </button>
               ))}
             </div>
