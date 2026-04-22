@@ -65,7 +65,9 @@ export default async function AdminDashboard() {
     daysLeft = Math.max(0, daysBetween(now, end));
   }
 
-  const alertThreshold = 5;
+  // Per-brand total stock alert (sum of all variants). Tibi receives 1-2
+  // units per variant by design, so per-variant alerting would always fire.
+  const alertThreshold = 4;
   const restockAlerts = rows.filter((r) => r.brand.type === 'consignment' && r.stock > 0 && r.stock <= alertThreshold);
   const pendingReceptions = ((pendingMovementsRes.data ?? []) as unknown as Array<{ id: string; qty_sent: number; qty_confirmed: number; brands: { name: string } }>)
     .filter((m) => m.qty_confirmed < m.qty_sent);

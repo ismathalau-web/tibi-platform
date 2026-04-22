@@ -163,17 +163,13 @@ export function ReportsPdf({ sales, brands, inventory, wholesale, generatedOn }:
         <View style={s.section}>
           <Text style={s.sectionTitle}>Low-stock alerts</Text>
           <View style={s.tableHead}>
-            <Text style={[s.th, { flex: 3 }]}>SKU</Text>
-            <Text style={[s.th, { flex: 3 }]}>Item</Text>
-            <Text style={[s.th, { flex: 2 }]}>Brand</Text>
-            <Text style={[s.th, { flex: 1, textAlign: 'right' }]}>Stock</Text>
+            <Text style={[s.th, { flex: 4 }]}>Brand</Text>
+            <Text style={[s.th, { flex: 1, textAlign: 'right' }]}>Total stock left</Text>
           </View>
           {inventory.low_stock.map((r, i) => (
             <View key={i} style={s.row} wrap={false}>
-              <Text style={{ flex: 3, color: '#888', fontSize: 8 }}>{r.sku}</Text>
-              <Text style={{ flex: 3 }}>{r.product}</Text>
-              <Text style={{ flex: 2, color: '#666' }}>{r.brand}</Text>
-              <Text style={{ flex: 1, textAlign: 'right' }}>{r.stock_qty}</Text>
+              <Text style={{ flex: 4 }}>{r.brand}</Text>
+              <Text style={{ flex: 1, textAlign: 'right' }}>{r.total_stock}</Text>
             </View>
           ))}
         </View>

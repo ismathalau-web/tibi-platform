@@ -218,4 +218,12 @@
   .tibi-table tbody tr:last-child td {
     border-bottom: 0;
   }
+
+  /* All right-aligned cells (numbers, money, percentages) get monospaced
+     digits + no wrapping so columns align perfectly across rows. */
+  .tibi-table th.text-right,
+  .tibi-table td.text-right {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
 }

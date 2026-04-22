@@ -88,6 +88,10 @@ export function ReportsView({ sales, brands, inventory, wholesale, tab, bucket }
     row('Method', 'Total (XOF)');
     for (const x of s.by_payment) row(x.method, x.total_xof);
 
+    block('Top brands');
+    row('Brand', 'Units sold', 'GMV (XOF)');
+    for (const x of s.top_brands) row(x.brand, x.qty, x.total_xof);
+
     block('Top items');
     row('Product', 'Brand', 'Qty', 'GMV (XOF)');
     for (const x of s.top_items) row(x.product, x.brand, x.qty, x.total_xof);
@@ -270,7 +274,20 @@ function SalesTab({ sales, csvOf }: { sales: SalesReport; csvOf: (filename: stri
       />
 
       <ReportTable
-        title="Top 10 items"
+        title="Top brands by GMV"
+        subtitle="Which brands drive your revenue"
+        rows={sales.top_brands}
+        columns={[
+          { key: 'brand', label: 'Brand' },
+          { key: 'qty', label: 'Units sold', align: 'right' },
+          { key: 'total_xof', label: 'GMV', align: 'right', format: formatXOF },
+        ]}
+        csv={() => csvOf('top-brands.csv', sales.top_brands)}
+      />
+
+      <ReportTable
+        title="Top 10 items by revenue"
+        subtitle="Highest-grossing products (1× a 100k boubou beats 5× a 5k accessory)"
         rows={sales.top_items}
         columns={[
           { key: 'product', label: 'Item' },
@@ -359,7 +376,7 @@ function InventoryTab({ inventory, csvOf }: { inventory: InventoryReport; csvOf:
         <StatCard label="Stock value (retail)" value={formatXOF(inventory.total_stock_value_xof)} hint="Marchandise en boutique" />
         <StatCard label="Items in stock" value={formatNumber(inventory.total_items_in_stock)} />
         <StatCard label="Dû aux marques" value={formatXOF(inventory.total_balance_due_xof)} />
-        <StatCard label="Low-stock alerts" value={inventory.alerts_count} hint={`≤ ${inventory.alert_threshold} units`} />
+        <StatCard label="Brands needing restock" value={inventory.alerts_count} hint={`≤ ${inventory.alert_threshold} items total`} />
       </section>
 
       {inventory.projection && (
@@ -395,16 +412,14 @@ function InventoryTab({ inventory, csvOf }: { inventory: InventoryReport; csvOf:
       )}
 
       <ReportTable
-        title="Low-stock alerts"
-        subtitle={`≤ ${inventory.alert_threshold} units`}
+        title="Low-stock brands"
+        subtitle={`Brands with ≤ ${inventory.alert_threshold} items left across all variants — time to reorder`}
         rows={inventory.low_stock}
         columns={[
-          { key: 'sku', label: 'SKU', mono: true, muted: true },
-          { key: 'product', label: 'Item' },
-          { key: 'brand', label: 'Brand', muted: true },
-          { key: 'stock_qty', label: 'Stock', align: 'right' },
+          { key: 'brand', label: 'Brand' },
+          { key: 'total_stock', label: 'Total stock left', align: 'right' },
         ]}
-        csv={() => csvOf('low-stock.csv', inventory.low_stock)}
+        csv={() => csvOf('low-stock-brands.csv', inventory.low_stock)}
       />
     </>
   );

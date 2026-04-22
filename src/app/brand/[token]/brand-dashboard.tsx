@@ -31,18 +31,33 @@ interface PaymentRow {
   paid_at: string;
 }
 
+interface SaleDetailRow {
+  sale_item_id: string;
+  sold_at: string;
+  product_name: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  qty_sold: number;
+  unit_price_xof: number;
+  unit_brand_share_xof: number;
+  total_brand_share_xof: number;
+}
+
 interface Props {
   summary: BrandSummary;
   stock: Array<Record<string, unknown>>;
   payments: Array<Record<string, unknown>>;
+  salesDetail: Array<Record<string, unknown>>;
   rates: Array<{ currency_code: string; rate_to_xof: number }>;
   token: string;
 }
 
-export function BrandDashboard({ summary: initialSummary, stock: initialStock, payments: initialPayments, rates, token }: Props) {
+export function BrandDashboard({ summary: initialSummary, stock: initialStock, payments: initialPayments, salesDetail: initialSalesDetail, rates, token }: Props) {
   const [summary, setSummary] = useState<BrandSummary>(initialSummary);
   const [stock, setStock] = useState<StockRow[]>(initialStock as unknown as StockRow[]);
   const [payments, setPayments] = useState<PaymentRow[]>(initialPayments as unknown as PaymentRow[]);
+  const [salesDetail, setSalesDetail] = useState<SaleDetailRow[]>(initialSalesDetail as unknown as SaleDetailRow[]);
   const [filter, setFilter] = useState<'all' | 'in_stock' | 'sold'>('all');
 
   const rate = useMemo(() => {
@@ -70,14 +85,16 @@ export function BrandDashboard({ summary: initialSummary, stock: initialStock, p
       .subscribe();
 
     async function refetch() {
-      const [s, st, p] = await Promise.all([
+      const [s, st, p, sd] = await Promise.all([
         supabase.rpc('brand_summary', { p_token: token }),
         supabase.rpc('brand_stock', { p_token: token }),
         supabase.rpc('brand_payment_history', { p_token: token }),
+        supabase.rpc('brand_sales_detail', { p_token: token }),
       ]);
       if (s.data) setSummary(s.data as unknown as BrandSummary);
       if (st.data) setStock(st.data as unknown as StockRow[]);
       if (p.data) setPayments(p.data as unknown as PaymentRow[]);
+      if (sd.data) setSalesDetail(sd.data as unknown as SaleDetailRow[]);
     }
 
     return () => {
@@ -187,6 +204,61 @@ export function BrandDashboard({ summary: initialSummary, stock: initialStock, p
                     <td className="text-right tabular-nums">{filteredStock.reduce((s, r) => s + r.qty_sent, 0)}</td>
                     <td className="text-right tabular-nums">{filteredStock.reduce((s, r) => s + r.qty_sold, 0)}</td>
                     <td className="text-right tabular-nums">{filteredStock.reduce((s, r) => s + r.qty_remaining, 0)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </section>
+
+        <section className="tibi-card p-0 overflow-hidden">
+          <div className="px-5 py-4">
+            <h2 className="tibi-section-title">Sales detail</h2>
+            <p className="text-[11px] text-ink-hint mt-1">
+              Each individual sale {summary.cycle ? `for ${summary.cycle.name}` : ''}.
+              <strong> Retail price</strong> = customer paid · <strong>Your share</strong> = what Tibi owes you.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="tibi-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Item</th>
+                  <th className="text-right">Qty</th>
+                  <th className="text-right">Retail / unit</th>
+                  <th className="text-right">Your share / unit</th>
+                  <th className="text-right">Total your share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {salesDetail.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center text-ink-hint py-8">No sales yet for this cycle.</td></tr>
+                ) : salesDetail.map((s) => (
+                  <tr key={s.sale_item_id}>
+                    <td className="text-ink-secondary text-[12px]">
+                      {new Date(s.sold_at).toLocaleString('en', { dateStyle: 'short' })}
+                    </td>
+                    <td>
+                      {s.product_name}
+                      <div className="text-[11px] text-ink-hint mt-0.5">
+                        {[s.sku, s.size, s.color].filter(Boolean).join(' · ')}
+                      </div>
+                    </td>
+                    <td className="text-right">{s.qty_sold}</td>
+                    <td className="text-right">{fmtMoney(s.unit_price_xof)}</td>
+                    <td className="text-right text-ink-secondary">{fmtMoney(s.unit_brand_share_xof)}</td>
+                    <td className="text-right font-medium">{fmtMoney(s.total_brand_share_xof)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {salesDetail.length > 0 && (
+                <tfoot>
+                  <tr className="border-t border-hairline border-divider font-medium">
+                    <td colSpan={2} className="text-right text-[12px] text-ink-secondary">Total</td>
+                    <td className="text-right">{salesDetail.reduce((s, x) => s + x.qty_sold, 0)}</td>
+                    <td colSpan={2}></td>
+                    <td className="text-right">{fmtMoney(salesDetail.reduce((s, x) => s + x.total_brand_share_xof, 0))}</td>
                   </tr>
                 </tfoot>
               )}

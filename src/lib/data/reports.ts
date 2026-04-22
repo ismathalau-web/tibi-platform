@@ -52,6 +52,8 @@ export interface SalesReport {
   by_weekday: Array<{ weekday: number; total_xof: number }>;
   by_seller: Array<{ seller: string; tx: number; total_xof: number }>;
   top_items: Array<{ product: string; brand: string; qty: number; total_xof: number }>;
+  /** Brands ranked by net GMV during the period — most useful "who sells" metric */
+  top_brands: Array<{ brand: string; qty: number; total_xof: number }>;
   dormant: Array<{ variant_id: string; product: string; brand: string; sku: string; stock_qty: number; last_sale_days: number | null }>;
 }
 
@@ -144,6 +146,7 @@ export async function getSalesReport(bucket: TimeBucket): Promise<SalesReport> {
     }
 
     const byProduct = new Map<string, { product: string; brand: string; qty: number; total: number }>();
+    const byBrand = new Map<string, { brand: string; qty: number; total: number }>();
     for (const it of itemList) {
       const returned = returnedByItem.get(it.id) ?? 0;
       const netQty = Math.max(0, (it.qty as number) - returned);
@@ -153,6 +156,10 @@ export async function getSalesReport(bucket: TimeBucket): Promise<SalesReport> {
       cur.qty += netQty;
       cur.total += netLine;
       byProduct.set(key, cur);
+      const bcur = byBrand.get(it.brands.name) ?? { brand: it.brands.name, qty: 0, total: 0 };
+      bcur.qty += netQty;
+      bcur.total += netLine;
+      byBrand.set(it.brands.name, bcur);
       // Tibi revenue: consignment = commission (already zeroed on full returns in processReturn);
       // wholesale / own_label = full net line
       if (it.item_type === 'consignment') tibiRevenue += it.commission_xof ?? 0;
@@ -161,7 +168,44 @@ export async function getSalesReport(bucket: TimeBucket): Promise<SalesReport> {
     for (const [, v] of byProduct) {
       if (v.qty > 0) topItems.push({ product: v.product, brand: v.brand, qty: v.qty, total_xof: v.total });
     }
-    topItems.sort((a, b) => b.qty - a.qty);
+    // Sort by revenue (Tibi reality: low qty per variant, so revenue is the
+    // meaningful ranking — a 100k boubou sold 1× tops a 5k accessory sold 3×)
+    topItems.sort((a, b) => b.total_xof - a.total_xof);
+  }
+
+  // Top brands by net GMV — useful when low qty per variant makes per-item rankings noisy
+  let topBrands: SalesReport['top_brands'] = [];
+  if (saleIds.length > 0) {
+    // Re-collect by brand from the same data
+    const { data: items2 } = await supabase
+      .from('sale_items')
+      .select('id, qty, unit_price_xof, brands!inner(name)')
+      .in('sale_id', saleIds);
+    const itemList2 = ((items2 ?? []) as any[]);
+    const returnedByItem2 = new Map<string, number>();
+    if (itemList2.length > 0) {
+      const { data: rs } = await supabase
+        .from('returns')
+        .select('sale_item_id, qty')
+        .in('sale_item_id', itemList2.map((it) => it.id));
+      for (const r of ((rs ?? []) as Array<{ sale_item_id: string; qty: number }>)) {
+        returnedByItem2.set(r.sale_item_id, (returnedByItem2.get(r.sale_item_id) ?? 0) + r.qty);
+      }
+    }
+    const byBrand = new Map<string, { brand: string; qty: number; total: number }>();
+    for (const it of itemList2) {
+      const returned = returnedByItem2.get(it.id) ?? 0;
+      const netQty = Math.max(0, (it.qty as number) - returned);
+      const netLine = netQty * (it.unit_price_xof as number);
+      const cur = byBrand.get(it.brands.name) ?? { brand: it.brands.name, qty: 0, total: 0 };
+      cur.qty += netQty;
+      cur.total += netLine;
+      byBrand.set(it.brands.name, cur);
+    }
+    topBrands = Array.from(byBrand.values())
+      .filter((b) => b.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .map((b) => ({ brand: b.brand, qty: b.qty, total_xof: b.total }));
   }
 
   // Dormant stock
@@ -219,6 +263,7 @@ export async function getSalesReport(bucket: TimeBucket): Promise<SalesReport> {
     by_weekday: Array.from({ length: 7 }, (_, d) => ({ weekday: d, total_xof: byWeekday.get(d) ?? 0 })),
     by_seller: Array.from(bySeller, ([seller, v]) => ({ seller, tx: v.tx, total_xof: v.total })).sort((a, b) => b.total_xof - a.total_xof),
     top_items: topItems.slice(0, 10),
+    top_brands: topBrands.slice(0, 10),
     dormant: dormant.slice(0, 50),
   };
 }
@@ -353,7 +398,9 @@ export interface InventoryReport {
   total_balance_due_xof: number;
   alerts_count: number;
   alert_threshold: number;
-  low_stock: Array<{ brand: string; product: string; sku: string; stock_qty: number }>;
+  /** Brands whose total stock (across all variants) is at or below the threshold.
+   * Per-variant stock is too noisy for Tibi's model (1-2 units per variant by design). */
+  low_stock: Array<{ brand: string; total_stock: number }>;
   projection: { current_sell_rate_per_day: number; days_left: number; projected_end_of_cycle_gmv_xof: number } | null;
   cycle_vs_previous: { current: { name: string; gmv_xof: number }; previous: { name: string; gmv_xof: number } | null } | null;
 }
@@ -379,13 +426,23 @@ export async function getInventoryReport(): Promise<InventoryReport> {
   ]);
 
   const variants = (variantsRes.data ?? []) as any[];
-  const threshold = Number((settingRes.data as any)?.value ?? 5);
+  const threshold = Number((settingRes.data as any)?.value ?? 4);
 
   const total_stock_value_xof = variants.reduce((s, v) => s + v.stock_qty * v.retail_price_xof, 0);
   const total_items_in_stock = variants.reduce((s, v) => s + v.stock_qty, 0);
-  const low_stock: InventoryReport['low_stock'] = variants
-    .filter((v) => v.stock_qty > 0 && v.stock_qty <= threshold)
-    .map((v) => ({ brand: v.brands.name, product: v.products.name, sku: v.sku, stock_qty: v.stock_qty }));
+
+  // Per-brand total stock (across all variants of that brand). A brand drops
+  // below the threshold when its TOTAL drops, not when individual variants do
+  // — Tibi typically receives 1-2 units per variant so per-variant alerting
+  // would always fire.
+  const stockByBrand = new Map<string, number>();
+  for (const v of variants) {
+    stockByBrand.set(v.brands.name, (stockByBrand.get(v.brands.name) ?? 0) + v.stock_qty);
+  }
+  const low_stock: InventoryReport['low_stock'] = Array.from(stockByBrand.entries())
+    .filter(([, total]) => total > 0 && total <= threshold)
+    .map(([brand, total_stock]) => ({ brand, total_stock }))
+    .sort((a, b) => a.total_stock - b.total_stock);
 
   // Balance due = consignment gross − commissions − brand_payments (across active cycle)
   let balance_due_xof = 0;
