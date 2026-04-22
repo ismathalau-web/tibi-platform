@@ -113,6 +113,33 @@ export function PreorderTable({ rows }: { rows: Row[] }) {
                       {r.status === 'ready' && (
                         <>
                           <Button variant="secondary" className="h-7 px-3 text-[11px]" onClick={() => collect(r)} disabled={isPending}>Collect → POS</Button>
+                          {(() => {
+                            const firstName = (r.customer_name ?? '').split(/\s+/)[0] || '';
+                            const itemsLabel = r.items.length === 1 ? 'votre article' : `vos ${r.items.length} articles`;
+                            const msg = `Bonjour ${firstName}, ${itemsLabel} de votre pré-commande chez Tibi Concept Store sont prêts à être récupérés ! Nous vous attendons à la boutique. Bonne journée.`;
+                            const subject = 'Tibi Concept Store Cotonou — Votre pré-commande est prête';
+                            const emailHref = r.customer_email
+                              ? `mailto:${r.customer_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`
+                              : null;
+                            const waPhone = (r.customer_phone ?? '').replace(/[^0-9]/g, '');
+                            const waHref = waPhone
+                              ? `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`
+                              : null;
+                            return (
+                              <>
+                                {emailHref && (
+                                  <a href={emailHref} className="text-[11px] text-ink-secondary hover:text-ink underline-offset-2 hover:underline">
+                                    ✉ Email
+                                  </a>
+                                )}
+                                {waHref && (
+                                  <a href={waHref} target="_blank" rel="noreferrer" className="text-[11px] text-ink-secondary hover:text-ink underline-offset-2 hover:underline">
+                                    ⌬ WhatsApp
+                                  </a>
+                                )}
+                              </>
+                            );
+                          })()}
                           <button className="text-[11px] text-ink-secondary hover:text-ink" onClick={() => change(r.id, 'pending')} disabled={isPending}>
                             Revert to pending
                           </button>

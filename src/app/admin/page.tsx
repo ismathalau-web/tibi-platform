@@ -116,7 +116,7 @@ export default async function AdminDashboard() {
                 {restockAlerts.map((r) => {
                   const msg = `Hi ${r.brand.name}, wanted to let you know that your stock at Tibi is getting low — only ${r.stock} items left. If you can prepare a restock for us, that would be great!`;
                   const waPhone = (r.brand.instagram ?? '').replace(/[^0-9]/g, '');
-                  const emailHref = `mailto:${r.brand.email ?? ''}?subject=${encodeURIComponent('Tibi — Restock needed')}&body=${encodeURIComponent(msg)}`;
+                  const emailHref = `mailto:${r.brand.email ?? ''}?subject=${encodeURIComponent('Tibi Concept Store Cotonou — Restock needed')}&body=${encodeURIComponent(msg)}`;
                   const waHref = waPhone
                     ? `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`
                     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
