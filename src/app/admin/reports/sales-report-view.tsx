@@ -69,29 +69,27 @@ export function SalesReportView({ report }: { report: SalesReport }) {
           value={formatXOF(report.gmv_xof)}
           hint={
             report.refunds_xof > 0
-              ? `Gross ${formatXOF(report.gross_gmv_xof)} − refunds ${formatXOF(report.refunds_xof)}`
+              ? `Gross ${formatXOF(report.gross_gmv_xof)}`
               : 'After refunds · voids excluded'
           }
         />
-        <StatCard label="Transactions" value={formatNumber(report.tx_count)} hint="Completed only" />
+        <StatCard label="Transactions" value={formatNumber(report.tx_count)} hint="Completed" />
         <StatCard label="Avg basket" value={formatXOF(report.average_basket_xof)} />
         <StatCard label="Dormant items" value={report.dormant.length} />
       </section>
 
-      {(report.refunds_count > 0 || report.voided_count > 0) && (
-        <section className="grid grid-cols-2 gap-4">
-          <div className="tibi-card">
-            <div className="tibi-label mb-1">Refunds</div>
-            <div className="text-[22px] font-medium tabular-nums">−{formatXOF(report.refunds_xof)}</div>
-            <div className="text-[11px] text-ink-hint mt-1">{report.refunds_count} refund{report.refunds_count === 1 ? '' : 's'}</div>
-          </div>
-          <div className="tibi-card">
-            <div className="tibi-label mb-1">Voided sales</div>
-            <div className="text-[22px] font-medium tabular-nums">{formatXOF(report.voided_xof)}</div>
-            <div className="text-[11px] text-ink-hint mt-1">{report.voided_count} void{report.voided_count === 1 ? '' : 's'}</div>
-          </div>
-        </section>
-      )}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Refunds"
+          value={report.refunds_xof > 0 ? `−${formatXOF(report.refunds_xof)}` : formatXOF(0)}
+          hint={`${report.refunds_count} refund${report.refunds_count === 1 ? '' : 's'}`}
+        />
+        <StatCard
+          label="Voided sales"
+          value={formatXOF(report.voided_xof)}
+          hint={`${report.voided_count} void${report.voided_count === 1 ? '' : 's'}`}
+        />
+      </section>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="tibi-card">
