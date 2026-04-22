@@ -14,7 +14,7 @@ export default async function PosLayout({ children }: { children: ReactNode }) {
           <Link href="/stock" className="hover:text-ink">Stock</Link>
           <Link href="/pos/returns" className="hover:text-ink">Returns</Link>
           <Link href="/pos/preorder" className="hover:text-ink">Pre-order</Link>
-          <Link href="/pos/close-day" className="hover:text-ink">Close day</Link>
+          <Link href="/pos/close-day" className="hover:text-ink">Daily close</Link>
           {user.role === 'admin' && (
             <Link href="/admin" className="hover:text-ink">Admin</Link>
           )}

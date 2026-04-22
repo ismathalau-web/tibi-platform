@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { requireUser } from '@/lib/auth';
 import { listVariants } from '@/lib/data/variants';
 import { listBrands } from '@/lib/data/brands';
-import { StockListClient } from '@/app/admin/stock/stock-list-client';
+import { StockListClient } from './stock-list-client';
 import type { BrandType, VariantStatus } from '@/lib/supabase/types';
 
 export const metadata = { title: 'Stock' };

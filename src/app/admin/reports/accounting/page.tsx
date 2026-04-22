@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth';
 import { getAccountingReport, listCyclesForAccounting, type Scope } from '@/lib/data/accounting';
 import { StatCard } from '@/components/ui/card';
 import { formatXOF, formatDate } from '@/lib/format';
+import { ReportsNav } from '../reports-nav';
 
 export const metadata = { title: 'Accounting' };
 export const dynamic = 'force-dynamic';
@@ -42,12 +42,6 @@ export default async function AccountingPage({ searchParams }: { searchParams: S
 
   return (
     <div className="flex flex-col gap-6 max-w-[1000px]">
-      <div className="flex items-center gap-2 text-[12px] text-ink-secondary">
-        <Link href="/admin/reports" className="hover:text-ink">Reports</Link>
-        <span>/</span>
-        <span className="text-ink">Accounting</span>
-      </div>
-
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="tibi-page-title">Accounting</h1>
@@ -72,6 +66,8 @@ export default async function AccountingPage({ searchParams }: { searchParams: S
           </a>
         </div>
       </header>
+
+      <ReportsNav />
 
       <form method="get" className="tibi-card flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1.5">

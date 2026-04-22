@@ -175,7 +175,7 @@ export async function createSale(input: z.infer<typeof saleSchema>): Promise<Cre
 
   revalidatePath('/admin');
   revalidatePath('/admin/brands');
-  revalidatePath('/admin/stock');
+  revalidatePath('/stock');
 
   return { ok: true, saleId: sale.id, invoiceNo: sale.invoice_no, total_xof: total };
 }

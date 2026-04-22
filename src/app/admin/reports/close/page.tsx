@@ -1,6 +1,7 @@
 import { getTodayClose } from '@/lib/data/reports';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { CloseDayView } from './close-day-view';
+import { ReportsNav } from '../reports-nav';
 
 export const metadata = { title: 'Daily close' };
 export const dynamic = 'force-dynamic';
@@ -20,5 +21,10 @@ async function isTodayAlreadyClosed(): Promise<boolean> {
 
 export default async function DailyClosePage() {
   const [data, alreadyClosed] = await Promise.all([getTodayClose(), isTodayAlreadyClosed()]);
-  return <CloseDayView data={data} alreadyClosed={alreadyClosed} />;
+  return (
+    <div className="flex flex-col gap-6">
+      <ReportsNav />
+      <CloseDayView data={data} alreadyClosed={alreadyClosed} />
+    </div>
+  );
 }

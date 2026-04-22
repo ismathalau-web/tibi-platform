@@ -7,6 +7,7 @@ import { StatCard } from '@/components/ui/card';
 import { Badge, BrandTypeBadge } from '@/components/ui/badge';
 import { formatXOF, formatDate, formatNumber, formatPercent } from '@/lib/format';
 import type { SalesReport, BrandsReport, InventoryReport, WholesaleReport, TimeBucket } from '@/lib/data/reports';
+import { ReportsNav } from './reports-nav';
 
 interface Props {
   sales: SalesReport;
@@ -26,13 +27,6 @@ const ranges: Array<{ id: TimeBucket; label: string }> = [
 ];
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const tabs: Array<{ id: Props['tab']; label: string }> = [
-  { id: 'sales', label: 'Sales' },
-  { id: 'brands', label: 'Brands' },
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'wholesale', label: 'Wholesale & Editions' },
-];
 
 export function ReportsView({ sales, brands, inventory, wholesale, tab, bucket }: Props) {
   const router = useRouter();
@@ -60,7 +54,7 @@ export function ReportsView({ sales, brands, inventory, wholesale, tab, bucket }
   const pdfHref = `/api/reports/pdf?range=${bucket}`;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="tibi-page-title">Reports</h1>
@@ -81,23 +75,10 @@ export function ReportsView({ sales, brands, inventory, wholesale, tab, bucket }
             ))}
           </div>
           <a href={pdfHref} target="_blank" rel="noreferrer" className="tibi-btn tibi-btn-secondary">Download PDF</a>
-          <Link href="/admin/reports/accounting" className="tibi-btn tibi-btn-secondary">Accounting</Link>
-          <Link href="/admin/reports/close" className="tibi-btn tibi-btn-secondary">Daily close</Link>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-hairline border-divider">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => navigate({ tab: t.id })}
-            className={`px-4 py-2 text-[12px] border-b-2 ${tab === t.id ? 'border-ink text-ink font-medium' : 'border-transparent text-ink-secondary hover:text-ink'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <ReportsNav />
 
       {tab === 'sales' && <SalesTab sales={sales} csvOf={csvOf} />}
       {tab === 'brands' && <BrandsTab brands={brands} csvOf={csvOf} />}

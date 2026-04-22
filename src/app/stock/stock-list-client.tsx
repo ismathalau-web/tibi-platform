@@ -19,6 +19,20 @@ export function StockListClient({ variants, canAdjust = false }: Props) {
   const [isPrinting, setPrinting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [adjustFor, setAdjustFor] = useState<VariantRow | null>(null);
+  const [search, setSearch] = useState('');
+
+  // Client-side search across SKU, product name, brand, size, color
+  const filteredVariants = (() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return variants;
+    return variants.filter((v) =>
+      v.sku.toLowerCase().includes(q) ||
+      v.product.name.toLowerCase().includes(q) ||
+      v.brand.name.toLowerCase().includes(q) ||
+      (v.size ?? '').toLowerCase().includes(q) ||
+      (v.color ?? '').toLowerCase().includes(q),
+    );
+  })();
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -28,10 +42,16 @@ export function StockListClient({ variants, canAdjust = false }: Props) {
     });
   }
 
-  const allSelected = variants.length > 0 && selected.size === variants.length;
+  const allSelected = filteredVariants.length > 0 && filteredVariants.every((v) => selected.has(v.id));
   function toggleAll() {
-    if (allSelected) setSelected(new Set());
-    else setSelected(new Set(variants.map((v) => v.id)));
+    if (allSelected) {
+      // Deselect all currently visible
+      const visibleIds = new Set(filteredVariants.map((v) => v.id));
+      setSelected((prev) => new Set([...prev].filter((id) => !visibleIds.has(id))));
+    } else {
+      // Add all currently visible to the selection
+      setSelected((prev) => new Set([...prev, ...filteredVariants.map((v) => v.id)]));
+    }
   }
 
   async function printSelected() {
@@ -79,18 +99,30 @@ export function StockListClient({ variants, canAdjust = false }: Props) {
 
   return (
     <>
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <span className="text-[12px] text-ink-secondary">{selected.size} selected</span>
-        <Button variant="secondary" onClick={printSelected} disabled={selected.size === 0 || isPrinting}>
-          {isPrinting ? 'Generating…' : `Print ${selected.size || ''} label${selected.size === 1 ? '' : 's'}`}
-        </Button>
-        <Button variant="secondary" onClick={exportCsv} disabled={variants.length === 0}>Export CSV</Button>
-        {canAdjust && (
-          <Link href="/admin/stock/history" className="text-[12px] text-ink-secondary hover:text-ink underline-offset-2 hover:underline">
-            Adjustment history →
-          </Link>
-        )}
-        <Link href="/stock/new"><Button>Add item</Button></Link>
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by SKU, item, brand, size, color…"
+          className="tibi-input flex-1 min-w-[240px] max-w-[440px]"
+        />
+        <span className="text-[12px] text-ink-secondary">
+          {search ? `${filteredVariants.length} of ${variants.length}` : `${variants.length} item${variants.length === 1 ? '' : 's'}`}
+          {selected.size > 0 && ` · ${selected.size} selected`}
+        </span>
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          <Button variant="secondary" onClick={printSelected} disabled={selected.size === 0 || isPrinting}>
+            {isPrinting ? 'Generating…' : `Print ${selected.size || ''} label${selected.size === 1 ? '' : 's'}`}
+          </Button>
+          <Button variant="secondary" onClick={exportCsv} disabled={variants.length === 0}>Export CSV</Button>
+          {canAdjust && (
+            <Link href="/stock/history" className="text-[12px] text-ink-secondary hover:text-ink underline-offset-2 hover:underline">
+              Adjustment history →
+            </Link>
+          )}
+          <Link href="/stock/new"><Button>Add item</Button></Link>
+        </div>
       </div>
       {err && <div className="text-[12px] text-danger-fg mb-2">{err}</div>}
       <div className="tibi-card p-0 overflow-hidden">
@@ -120,9 +152,11 @@ export function StockListClient({ variants, canAdjust = false }: Props) {
               </tr>
             </thead>
             <tbody>
-              {variants.length === 0 ? (
-                <tr><td colSpan={canAdjust ? 11 : 10} className="text-center text-ink-hint py-12">No items. Click Add item.</td></tr>
-              ) : variants.map((v) => {
+              {filteredVariants.length === 0 ? (
+                <tr><td colSpan={canAdjust ? 11 : 10} className="text-center text-ink-hint py-12">
+                  {search ? `No item matches “${search}”.` : 'No items. Click Add item.'}
+                </td></tr>
+              ) : filteredVariants.map((v) => {
                 const soldOut = v.stock_qty <= 0;
                 return (
                   <tr key={v.id}>

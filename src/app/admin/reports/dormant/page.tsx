@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { getSalesReport } from '@/lib/data/reports';
 import { formatXOF } from '@/lib/format';
+import { ReportsNav } from '../reports-nav';
 
 export const metadata = { title: 'Dormant stock' };
 export const dynamic = 'force-dynamic';
@@ -11,16 +11,12 @@ export default async function DormantPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2 text-[12px] text-ink-secondary">
-        <Link href="/admin/reports" className="hover:text-ink">Reports</Link>
-        <span>/</span>
-        <span className="text-ink">Dormant stock</span>
-      </div>
-
       <header>
         <h1 className="tibi-page-title">Dormant stock</h1>
         <p className="text-[12px] text-ink-hint mt-1">Items with no sale in the last 30 days — {rows.length} total.</p>
       </header>
+
+      <ReportsNav />
 
       <div className="tibi-card p-0 overflow-hidden">
         <div className="overflow-x-auto">

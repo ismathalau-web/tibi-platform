@@ -1,6 +1,6 @@
 import { listBrands } from '@/lib/data/brands';
 import { requireUser } from '@/lib/auth';
-import { AddItemForm } from '@/app/admin/stock/new/add-item-form';
+import { AddItemForm } from './add-item-form';
 
 export const metadata = { title: 'Add item' };
 
