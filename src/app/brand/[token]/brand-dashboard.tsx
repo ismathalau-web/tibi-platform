@@ -31,18 +31,34 @@ interface PaymentRow {
   paid_at: string;
 }
 
+interface SaleDetailRow {
+  sale_item_id: string;
+  sold_at: string;
+  invoice_no: number;
+  product_name: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  qty_sold: number;
+  unit_price_xof: number;
+  unit_brand_share_xof: number;
+  total_brand_share_xof: number;
+}
+
 interface Props {
   summary: BrandSummary;
   stock: Array<Record<string, unknown>>;
   payments: Array<Record<string, unknown>>;
+  salesDetail: Array<Record<string, unknown>>;
   rates: Array<{ currency_code: string; rate_to_xof: number }>;
   token: string;
 }
 
-export function BrandDashboard({ summary: initialSummary, stock: initialStock, payments: initialPayments, rates, token }: Props) {
+export function BrandDashboard({ summary: initialSummary, stock: initialStock, payments: initialPayments, salesDetail: initialSalesDetail, rates, token }: Props) {
   const [summary, setSummary] = useState<BrandSummary>(initialSummary);
   const [stock, setStock] = useState<StockRow[]>(initialStock as unknown as StockRow[]);
   const [payments, setPayments] = useState<PaymentRow[]>(initialPayments as unknown as PaymentRow[]);
+  const [salesDetail, setSalesDetail] = useState<SaleDetailRow[]>(initialSalesDetail as unknown as SaleDetailRow[]);
   const [filter, setFilter] = useState<'all' | 'in_stock' | 'sold'>('all');
 
   const rate = useMemo(() => {
@@ -70,14 +86,16 @@ export function BrandDashboard({ summary: initialSummary, stock: initialStock, p
       .subscribe();
 
     async function refetch() {
-      const [s, st, p] = await Promise.all([
+      const [s, st, p, sd] = await Promise.all([
         supabase.rpc('brand_summary', { p_token: token }),
         supabase.rpc('brand_stock', { p_token: token }),
         supabase.rpc('brand_payment_history', { p_token: token }),
+        supabase.rpc('brand_sales_detail', { p_token: token }),
       ]);
       if (s.data) setSummary(s.data as unknown as BrandSummary);
       if (st.data) setStock(st.data as unknown as StockRow[]);
       if (p.data) setPayments(p.data as unknown as PaymentRow[]);
+      if (sd.data) setSalesDetail(sd.data as unknown as SaleDetailRow[]);
     }
 
     return () => {
@@ -144,7 +162,8 @@ export function BrandDashboard({ summary: initialSummary, stock: initialStock, p
                   <th>SKU</th>
                   <th>Size</th>
                   <th>Color</th>
-                  <th className="text-right">Price</th>
+                  <th className="text-right">Retail price</th>
+                  <th className="text-right">Your share / unit</th>
                   <th className="text-right">Sent</th>
                   <th className="text-right">Sold</th>
                   <th className="text-right">Remaining</th>
@@ -152,27 +171,95 @@ export function BrandDashboard({ summary: initialSummary, stock: initialStock, p
               </thead>
               <tbody>
                 {filteredStock.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center text-ink-hint py-8">No items.</td></tr>
-                ) : filteredStock.map((r) => (
-                  <tr key={r.variant_id}>
+                  <tr><td colSpan={10} className="text-center text-ink-hint py-8">No items.</td></tr>
+                ) : filteredStock.map((r) => {
+                  const commissionPct = summary.brand.commission_pct ?? 0;
+                  const yourShare = Math.round(r.retail_price_xof * (1 - commissionPct / 100));
+                  return (
+                    <tr key={r.variant_id}>
+                      <td>
+                        {r.photo_url ? (
+                          <ZoomableImage src={r.photo_url} className="w-10 h-10 rounded-input object-cover border-hairline border-border" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-input bg-surface" />
+                        )}
+                      </td>
+                      <td>{r.product_name}</td>
+                      <td className="font-mono text-[11px] text-ink-hint">{r.sku}</td>
+                      <td className="text-ink-secondary">{r.size ?? '—'}</td>
+                      <td className="text-ink-secondary">{r.color ?? '—'}</td>
+                      <td className="text-right">{fmtMoney(r.retail_price_xof)}</td>
+                      <td className="text-right text-ink-secondary">{fmtMoney(yourShare)}</td>
+                      <td className="text-right">{r.qty_sent}</td>
+                      <td className="text-right">{r.qty_sold}</td>
+                      <td className="text-right">{r.qty_remaining}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="tibi-card p-0 overflow-hidden">
+          <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="tibi-section-title">Sales detail</h2>
+              <p className="text-[11px] text-ink-hint mt-1">
+                Each individual sale {summary.cycle ? `for ${summary.cycle.name}` : ''}.
+                <strong> Retail price</strong> = what the customer paid · <strong>Your share</strong> = what Tibi owes you for that sale.
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="tibi-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Invoice</th>
+                  <th>Item</th>
+                  <th>SKU</th>
+                  <th className="text-right">Qty</th>
+                  <th className="text-right">Retail / unit</th>
+                  <th className="text-right">Your share / unit</th>
+                  <th className="text-right">Total your share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {salesDetail.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center text-ink-hint py-8">No sales yet for this cycle.</td></tr>
+                ) : salesDetail.map((s) => (
+                  <tr key={s.sale_item_id}>
+                    <td className="text-ink-secondary text-[12px]">
+                      {new Date(s.sold_at).toLocaleString('en', { dateStyle: 'short', timeStyle: 'short' })}
+                    </td>
+                    <td className="font-mono text-[11px] text-ink-hint">#{s.invoice_no}</td>
                     <td>
-                      {r.photo_url ? (
-                        <ZoomableImage src={r.photo_url} className="w-10 h-10 rounded-input object-cover border-hairline border-border" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-input bg-surface" />
+                      {s.product_name}
+                      {(s.size || s.color) && (
+                        <div className="text-[11px] text-ink-hint">{[s.size, s.color].filter(Boolean).join(' · ')}</div>
                       )}
                     </td>
-                    <td>{r.product_name}</td>
-                    <td className="font-mono text-[11px] text-ink-hint">{r.sku}</td>
-                    <td className="text-ink-secondary">{r.size ?? '—'}</td>
-                    <td className="text-ink-secondary">{r.color ?? '—'}</td>
-                    <td className="text-right">{fmtMoney(r.retail_price_xof)}</td>
-                    <td className="text-right">{r.qty_sent}</td>
-                    <td className="text-right">{r.qty_sold}</td>
-                    <td className="text-right">{r.qty_remaining}</td>
+                    <td className="font-mono text-[11px] text-ink-hint">{s.sku}</td>
+                    <td className="text-right">{s.qty_sold}</td>
+                    <td className="text-right">{fmtMoney(s.unit_price_xof)}</td>
+                    <td className="text-right text-ink-secondary">{fmtMoney(s.unit_brand_share_xof)}</td>
+                    <td className="text-right font-medium tabular-nums">{fmtMoney(s.total_brand_share_xof)}</td>
                   </tr>
                 ))}
               </tbody>
+              {salesDetail.length > 0 && (
+                <tfoot>
+                  <tr className="border-t border-hairline border-divider font-medium">
+                    <td colSpan={4}></td>
+                    <td className="text-right">{salesDetail.reduce((s, x) => s + x.qty_sold, 0)}</td>
+                    <td colSpan={2}></td>
+                    <td className="text-right tabular-nums">
+                      {fmtMoney(salesDetail.reduce((s, x) => s + x.total_brand_share_xof, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </section>
