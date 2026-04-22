@@ -9,9 +9,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
   const supabase = createAdminClient();
-  const [summaryRes, stockRes] = await Promise.all([
+  const [summaryRes, stockRes, salesDetailRes] = await Promise.all([
     supabase.rpc('brand_summary', { p_token: params.token }),
     supabase.rpc('brand_stock', { p_token: params.token }),
+    supabase.rpc('brand_sales_detail', { p_token: params.token }),
   ]);
 
   if (summaryRes.error || !summaryRes.data) return new NextResponse('Not found', { status: 404 });
@@ -19,6 +20,11 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
   const stock = (stockRes.data ?? []) as Array<{
     product_name: string; sku: string; size: string | null; color: string | null;
     retail_price_xof: number; qty_sent: number; qty_sold: number; qty_remaining: number;
+  }>;
+  const salesDetail = (salesDetailRes.data ?? []) as Array<{
+    sold_at: string; invoice_no: number; product_name: string; sku: string;
+    size: string | null; color: string | null; qty_sold: number;
+    unit_price_xof: number; unit_brand_share_xof: number; total_brand_share_xof: number;
   }>;
 
   const buffer = await renderToBuffer(
@@ -32,6 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
       balanceDueXof: summary.stats.balance_due_xof,
       paidXof: summary.stats.paid_xof,
       stock,
+      salesDetail,
       date: new Intl.DateTimeFormat('en', { dateStyle: 'long' }).format(new Date()),
     }) as any,
   );

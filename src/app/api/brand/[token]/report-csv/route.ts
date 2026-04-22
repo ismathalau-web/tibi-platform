@@ -19,9 +19,10 @@ function line(...cells: unknown[]): string {
 
 export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
   const supabase = createAdminClient();
-  const [summaryRes, stockRes] = await Promise.all([
+  const [summaryRes, stockRes, salesDetailRes] = await Promise.all([
     supabase.rpc('brand_summary', { p_token: params.token }),
     supabase.rpc('brand_stock', { p_token: params.token }),
+    supabase.rpc('brand_sales_detail', { p_token: params.token }),
   ]);
 
   if (summaryRes.error || !summaryRes.data) return new NextResponse('Not found', { status: 404 });
@@ -30,7 +31,13 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     product_name: string; sku: string; size: string | null; color: string | null;
     retail_price_xof: number; qty_sent: number; qty_sold: number; qty_remaining: number;
   }>;
+  const salesDetail = (salesDetailRes.data ?? []) as Array<{
+    sold_at: string; invoice_no: number; product_name: string; sku: string;
+    size: string | null; color: string | null; qty_sold: number;
+    unit_price_xof: number; unit_brand_share_xof: number; total_brand_share_xof: number;
+  }>;
 
+  const commissionPct = summary.brand.commission_pct ?? 0;
   const date = new Intl.DateTimeFormat('en-CA').format(new Date()); // YYYY-MM-DD
   const lines: string[] = [];
 
@@ -52,17 +59,52 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
   lines.push('');
 
   // Stock table
-  lines.push(line('Item', 'SKU', 'Size', 'Color', 'Retail price (XOF)', 'Sent', 'Sold', 'Remaining'));
+  lines.push(line('STOCK'));
+  lines.push(line('Item', 'SKU', 'Size', 'Color', 'Retail price (XOF)', 'Your share / unit (XOF)', 'Sent', 'Sold', 'Remaining'));
   for (const r of stock) {
+    const yourShare = Math.round(r.retail_price_xof * (1 - commissionPct / 100));
     lines.push(line(
       r.product_name,
       r.sku,
       r.size ?? '',
       r.color ?? '',
       r.retail_price_xof,
+      yourShare,
       r.qty_sent,
       r.qty_sold,
       r.qty_remaining,
+    ));
+  }
+  lines.push('');
+
+  // Sales detail table
+  lines.push(line('SALES DETAIL'));
+  lines.push(line(
+    'Date', 'Invoice', 'Item', 'SKU', 'Size', 'Color',
+    'Qty', 'Retail / unit (XOF)', 'Your share / unit (XOF)', 'Total your share (XOF)',
+  ));
+  if (salesDetail.length === 0) {
+    lines.push(line('— No sales yet for this cycle —'));
+  } else {
+    for (const s of salesDetail) {
+      lines.push(line(
+        new Date(s.sold_at).toISOString().slice(0, 10),
+        s.invoice_no,
+        s.product_name,
+        s.sku,
+        s.size ?? '',
+        s.color ?? '',
+        s.qty_sold,
+        s.unit_price_xof,
+        s.unit_brand_share_xof,
+        s.total_brand_share_xof,
+      ));
+    }
+    lines.push(line(
+      'TOTAL', '', '', '', '', '',
+      salesDetail.reduce((s, x) => s + x.qty_sold, 0),
+      '', '',
+      salesDetail.reduce((s, x) => s + x.total_brand_share_xof, 0),
     ));
   }
 
