@@ -38,37 +38,29 @@ begin
   select id into v_cycle_id from cycles where is_active limit 1;
 
   return query
-  with returned as (
-    select sale_item_id, sum(qty) as q
-      from returns
-     group by sale_item_id
+  -- Rename the join column to avoid clashing with the OUT parameter
+  -- sale_item_id (which is a plpgsql variable inside the function scope)
+  with returned_qty as (
+    select r.sale_item_id as item_id, sum(r.qty) as q
+      from returns r
+     group by r.sale_item_id
   )
   select
-    si.id as sale_item_id,
-    s.created_at as sold_at,
-    s.invoice_no,
-    p.name as product_name,
-    v.sku,
-    v.size,
-    v.color,
-    -- Net qty after returns
-    greatest(si.qty - coalesce(rt.q, 0), 0) as qty_sold,
+    si.id, s.created_at, s.invoice_no, p.name, v.sku, v.size, v.color,
+    greatest(si.qty - coalesce(rt.q, 0), 0)::integer,
     si.unit_price_xof,
-    -- Per-unit brand share = retail price - commission applied to that unit
-    -- commission_xof on sale_item is the Tibi cut for the FULL line; spread per unit
     case
       when si.qty > 0 then si.unit_price_xof - (si.commission_xof / si.qty)
       else 0
-    end::integer as unit_brand_share_xof,
-    -- Total share for the net-sold qty
-    greatest(si.qty - coalesce(rt.q, 0), 0) *
+    end::integer,
+    (greatest(si.qty - coalesce(rt.q, 0), 0) *
       case when si.qty > 0 then si.unit_price_xof - (si.commission_xof / si.qty) else 0 end
-      as total_brand_share_xof
+    )::integer
   from sale_items si
   join sales s on s.id = si.sale_id
   join variants v on v.id = si.variant_id
   join products p on p.id = v.product_id
-  left join returned rt on rt.sale_item_id = si.id
+  left join returned_qty rt on rt.item_id = si.id
   where si.brand_id = v_brand_id
     and si.item_type = 'consignment'
     and s.voided_at is null
