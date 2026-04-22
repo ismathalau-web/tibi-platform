@@ -51,6 +51,81 @@ export function ReportsView({ sales, brands, inventory, wholesale, tab, bucket }
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Bundle the whole report into one CSV with section headers
+   * (Sales summary, by seller, top items, dormant, brands, inventory, wholesale).
+   */
+  function downloadAllAsCsv(
+    s: SalesReport,
+    b: BrandsReport,
+    inv: InventoryReport,
+    w: WholesaleReport,
+  ) {
+    const lines: string[] = [];
+    const block = (header: string) => { lines.push(''); lines.push(header.toUpperCase()); };
+    const row = (...cells: unknown[]) => lines.push(cells.map((c) => JSON.stringify(c ?? '')).join(','));
+
+    lines.push('Tibi Reports — bundled CSV');
+    row('Range', `${formatDate(s.since)} → ${formatDate(s.until)}`);
+    row('Generated', new Date().toISOString().slice(0, 19).replace('T', ' '));
+
+    block('Sales summary');
+    row('Net GMV (XOF)', s.gmv_xof);
+    row('Gross GMV (XOF)', s.gross_gmv_xof);
+    row('Refunds (XOF)', s.refunds_xof);
+    row('Refunds count', s.refunds_count);
+    row('Voided (XOF)', s.voided_xof);
+    row('Voided count', s.voided_count);
+    row('Transactions', s.tx_count);
+    row('Avg basket (XOF)', s.average_basket_xof);
+    row('Tibi revenue (XOF)', s.tibi_revenue_xof);
+
+    block('By seller');
+    row('Seller', 'Tx', 'Total (XOF)');
+    for (const x of s.by_seller) row(x.seller, x.tx, x.total_xof);
+
+    block('By payment');
+    row('Method', 'Total (XOF)');
+    for (const x of s.by_payment) row(x.method, x.total_xof);
+
+    block('Top items');
+    row('Product', 'Brand', 'Qty', 'GMV (XOF)');
+    for (const x of s.top_items) row(x.product, x.brand, x.qty, x.total_xof);
+
+    block(`Dormant stock (${s.dormant.length})`);
+    row('SKU', 'Item', 'Brand', 'Stock', 'Days since last sale');
+    for (const x of s.dormant) row(x.sku, x.product, x.brand, x.stock_qty, x.last_sale_days ?? 'never');
+
+    block('Brands');
+    row('Brand', 'Type', 'GMV (XOF)', 'Sold', 'Sent', 'Sell-through %', 'Commission (XOF)', 'Avg days to sell', 'Stock value (XOF)');
+    for (const x of b.rows) row(x.name, x.type, x.gmv_xof, x.units_sold, x.units_sent, x.sell_through_pct.toFixed(0), x.commission_xof, x.avg_days_to_sell ?? '', x.stock_value_xof);
+
+    block('Inventory');
+    row('Stock value retail (XOF)', inv.total_stock_value_xof);
+    row('Items in stock', inv.total_items_in_stock);
+    row('Total due to brands (XOF)', inv.total_balance_due_xof);
+    row('Low-stock alerts', inv.alerts_count);
+
+    block('Wholesale');
+    row('Sales (XOF)', w.wholesale.sales_xof);
+    row('COGS (XOF)', w.wholesale.cogs_xof);
+    row('Gross margin (XOF)', w.wholesale.gross_margin_xof);
+
+    block('Tibi Editions (own label)');
+    row('Sales (XOF)', w.own_label.sales_xof);
+    row('COGS (XOF)', w.own_label.cogs_xof);
+    row('Gross margin (XOF)', w.own_label.gross_margin_xof);
+
+    const body = '\uFEFF' + lines.join('\r\n') + '\r\n';
+    const blob = new Blob([body], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tibi-reports-${bucket}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const pdfHref = `/api/reports/pdf?range=${bucket}`;
 
   return (
@@ -75,6 +150,13 @@ export function ReportsView({ sales, brands, inventory, wholesale, tab, bucket }
             ))}
           </div>
           <a href={pdfHref} target="_blank" rel="noreferrer" className="tibi-btn tibi-btn-secondary">Download PDF</a>
+          <button
+            type="button"
+            onClick={() => downloadAllAsCsv(sales, brands, inventory, wholesale)}
+            className="tibi-btn tibi-btn-secondary"
+          >
+            Download CSV
+          </button>
         </div>
       </header>
 

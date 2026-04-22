@@ -75,6 +75,14 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
       r.qty_remaining,
     ));
   }
+  if (stock.length > 0) {
+    lines.push(line(
+      'TOTAL', '', '', '', '', '',
+      stock.reduce((s, r) => s + r.qty_sent, 0),
+      stock.reduce((s, r) => s + r.qty_sold, 0),
+      stock.reduce((s, r) => s + r.qty_remaining, 0),
+    ));
+  }
   lines.push('');
 
   // Sales detail table
