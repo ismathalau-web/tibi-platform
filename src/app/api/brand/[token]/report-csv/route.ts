@@ -32,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     retail_price_xof: number; qty_sent: number; qty_sold: number; qty_remaining: number;
   }>;
   const salesDetail = (salesDetailRes.data ?? []) as Array<{
-    sold_at: string; invoice_no: number; product_name: string; sku: string;
+    sold_at: string; product_name: string; sku: string;
     size: string | null; color: string | null; qty_sold: number;
     unit_price_xof: number; unit_brand_share_xof: number; total_brand_share_xof: number;
   }>;
@@ -85,10 +85,10 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
   }
   lines.push('');
 
-  // Sales detail table
+  // Sales detail table (no invoice number — internal Tibi info, not for the brand)
   lines.push(line('SALES DETAIL'));
   lines.push(line(
-    'Date', 'Invoice', 'Item', 'SKU', 'Size', 'Color',
+    'Date', 'Item', 'SKU', 'Size', 'Color',
     'Qty', 'Retail / unit (XOF)', 'Your share / unit (XOF)', 'Total your share (XOF)',
   ));
   if (salesDetail.length === 0) {
@@ -97,7 +97,6 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     for (const s of salesDetail) {
       lines.push(line(
         new Date(s.sold_at).toISOString().slice(0, 10),
-        s.invoice_no,
         s.product_name,
         s.sku,
         s.size ?? '',
@@ -109,7 +108,7 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
       ));
     }
     lines.push(line(
-      'TOTAL', '', '', '', '', '',
+      'TOTAL', '', '', '', '',
       salesDetail.reduce((s, x) => s + x.qty_sold, 0),
       '', '',
       salesDetail.reduce((s, x) => s + x.total_brand_share_xof, 0),

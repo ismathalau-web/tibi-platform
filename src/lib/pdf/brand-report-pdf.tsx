@@ -13,7 +13,6 @@ interface StockRow {
 
 interface SaleDetailRow {
   sold_at: string;
-  invoice_no: number;
   product_name: string;
   sku: string;
   size: string | null;
@@ -64,14 +63,13 @@ const styles = StyleSheet.create({
   s6: { flex: 0.6, textAlign: 'right', paddingRight: 8 },
   s7: { flex: 0.6, textAlign: 'right' },
 
-  // Sales detail columns: Date · Invoice · Item · Qty · Retail/u · Share/u · Total share
-  d1: { flex: 1.4, paddingRight: 6 },
-  d2: { flex: 0.8, paddingRight: 6 },
-  d3: { flex: 2.4, paddingRight: 6 },
-  d4: { flex: 0.5, textAlign: 'right', paddingRight: 6 },
-  d5: { flex: 1.2, textAlign: 'right', paddingRight: 6 },
-  d6: { flex: 1.2, textAlign: 'right', paddingRight: 6 },
-  d7: { flex: 1.4, textAlign: 'right' },
+  // Sales detail columns: Date · Item · Qty · Retail/u · Share/u · Total share
+  d1: { flex: 1.4, paddingRight: 8 },
+  d2: { flex: 3, paddingRight: 8 },
+  d3: { flex: 0.6, textAlign: 'right', paddingRight: 8 },
+  d4: { flex: 1.4, textAlign: 'right', paddingRight: 8 },
+  d5: { flex: 1.4, textAlign: 'right', paddingRight: 8 },
+  d6: { flex: 1.6, textAlign: 'right' },
 
   totalRow: { flexDirection: 'row', paddingVertical: 8, borderTopWidth: 0.5, borderColor: '#1a1a1a', marginTop: 4 },
   totalLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 1 },
@@ -170,38 +168,37 @@ export function BrandReportPdf({
           </Text>
           <View style={styles.tableHead}>
             <Text style={[styles.th, styles.d1]}>Date</Text>
-            <Text style={[styles.th, styles.d2]}>Invoice</Text>
-            <Text style={[styles.th, styles.d3]}>Item</Text>
-            <Text style={[styles.th, styles.d4]}>Qty</Text>
-            <Text style={[styles.th, styles.d5]}>Retail/u</Text>
-            <Text style={[styles.th, styles.d6]}>Share/u</Text>
-            <Text style={[styles.th, styles.d7]}>Total share</Text>
+            <Text style={[styles.th, styles.d2]}>Item</Text>
+            <Text style={[styles.th, styles.d3]}>Qty</Text>
+            <Text style={[styles.th, styles.d4]}>Retail/u</Text>
+            <Text style={[styles.th, styles.d5]}>Share/u</Text>
+            <Text style={[styles.th, styles.d6]}>Total share</Text>
           </View>
           {salesDetail.length === 0 ? (
             <Text style={{ fontSize: 9, color: '#888', paddingVertical: 8 }}>No sales yet for this cycle.</Text>
           ) : salesDetail.map((r, i) => (
             <View key={i} style={styles.row} wrap={false}>
               <Text style={styles.d1}>{dateOnly(r.sold_at)}</Text>
-              <Text style={[styles.d2, { fontSize: 8, color: '#888' }]}>#{r.invoice_no}</Text>
-              <Text style={styles.d3}>
-                {r.product_name}
-                {(r.size || r.color) ? ` (${[r.size, r.color].filter(Boolean).join(' · ')})` : ''}
-              </Text>
-              <Text style={styles.d4}>{r.qty_sold}</Text>
-              <Text style={styles.d5}>{fmt(r.unit_price_xof)}</Text>
-              <Text style={styles.d6}>{fmt(r.unit_brand_share_xof)}</Text>
-              <Text style={styles.d7}>{fmt(r.total_brand_share_xof)}</Text>
+              <View style={styles.d2}>
+                <Text>{r.product_name}</Text>
+                <Text style={{ fontSize: 7, color: '#aaa', marginTop: 1 }}>
+                  {[r.sku, r.size, r.color].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              <Text style={styles.d3}>{r.qty_sold}</Text>
+              <Text style={styles.d4}>{fmt(r.unit_price_xof)}</Text>
+              <Text style={styles.d5}>{fmt(r.unit_brand_share_xof)}</Text>
+              <Text style={styles.d6}>{fmt(r.total_brand_share_xof)}</Text>
             </View>
           ))}
           {salesDetail.length > 0 && (
             <View style={styles.totalRow} wrap={false}>
               <Text style={[styles.totalLabel, styles.d1]}>Total</Text>
               <Text style={styles.d2}></Text>
-              <Text style={styles.d3}></Text>
-              <Text style={[styles.d4, { fontFamily: 'Helvetica-Bold' }]}>{totalQty}</Text>
+              <Text style={[styles.d3, { fontFamily: 'Helvetica-Bold' }]}>{totalQty}</Text>
+              <Text style={styles.d4}></Text>
               <Text style={styles.d5}></Text>
-              <Text style={styles.d6}></Text>
-              <Text style={[styles.d7, { fontFamily: 'Helvetica-Bold' }]}>{fmt(totalShare)}</Text>
+              <Text style={[styles.d6, { fontFamily: 'Helvetica-Bold' }]}>{fmt(totalShare)}</Text>
             </View>
           )}
         </View>

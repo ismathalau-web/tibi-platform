@@ -174,10 +174,28 @@ function SalesTab({ sales, csvOf }: { sales: SalesReport; csvOf: (filename: stri
   return (
     <>
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="GMV" value={formatXOF(sales.gmv_xof)} hint="Marchandise vendue" accent="ink" />
+        <StatCard
+          label="Net GMV"
+          value={formatXOF(sales.gmv_xof)}
+          hint={sales.refunds_xof > 0 ? `Gross ${formatXOF(sales.gross_gmv_xof)}` : 'After refunds · voids excluded'}
+          accent="ink"
+        />
         <StatCard label="Tibi CA" value={formatXOF(sales.tibi_revenue_xof)} hint="Commissions + wholesale" accent="accent" />
-        <StatCard label="Transactions" value={formatNumber(sales.tx_count)} />
+        <StatCard label="Transactions" value={formatNumber(sales.tx_count)} hint="Completed" />
         <StatCard label="Avg basket" value={formatXOF(sales.average_basket_xof)} />
+      </section>
+
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Refunds"
+          value={sales.refunds_xof > 0 ? `−${formatXOF(sales.refunds_xof)}` : formatXOF(0)}
+          hint={`${sales.refunds_count} refund${sales.refunds_count === 1 ? '' : 's'}`}
+        />
+        <StatCard
+          label="Voided sales"
+          value={formatXOF(sales.voided_xof)}
+          hint={`${sales.voided_count} void${sales.voided_count === 1 ? '' : 's'}`}
+        />
       </section>
 
       {sales.gmv_series.length > 0 && (

@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     retail_price_xof: number; qty_sent: number; qty_sold: number; qty_remaining: number;
   }>;
   const salesDetail = (salesDetailRes.data ?? []) as Array<{
-    sold_at: string; invoice_no: number; product_name: string; sku: string;
+    sold_at: string; product_name: string; sku: string;
     size: string | null; color: string | null; qty_sold: number;
     unit_price_xof: number; unit_brand_share_xof: number; total_brand_share_xof: number;
   }>;
