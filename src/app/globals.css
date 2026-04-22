@@ -219,10 +219,13 @@
     border-bottom: 0;
   }
 
-  /* All right-aligned cells (numbers, money, percentages) get monospaced
-     digits + no wrapping so columns align perfectly across rows. */
+  /* All right-aligned cells (numbers, money, percentages):
+     - Force text-align right (overrides .tibi-table th { text-align: left })
+     - Monospaced digits so columns align perfectly across rows
+     - No wrap so "100 000 XOF" stays on a single line */
   .tibi-table th.text-right,
   .tibi-table td.text-right {
+    text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
