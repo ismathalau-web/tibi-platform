@@ -127,24 +127,36 @@ export function PreorderTable({ rows }: { rows: Row[] }) {
                               : null;
                             if (!emailHref && !waHref) return null;
                             return (
-                              <span className="inline-flex items-center gap-1 text-[11px] text-ink-hint">
-                                Notify
+                              <>
                                 {emailHref && (
-                                  <a href={emailHref} title="Email customer" className="ml-1 hover:text-ink">✉</a>
+                                  <a
+                                    href={emailHref}
+                                    title="Notify customer by email"
+                                    className="inline-flex items-center justify-center h-7 px-3 text-[11px] rounded-pill border-hairline border border-border text-ink-secondary hover:bg-hover hover:text-ink"
+                                  >
+                                    Email
+                                  </a>
                                 )}
                                 {waHref && (
-                                  <a href={waHref} target="_blank" rel="noreferrer" title="WhatsApp customer" className="hover:text-ink">⌬</a>
+                                  <a
+                                    href={waHref}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title="Notify customer on WhatsApp"
+                                    className="inline-flex items-center justify-center h-7 px-3 text-[11px] rounded-pill border-hairline border border-border text-ink-secondary hover:bg-hover hover:text-ink"
+                                  >
+                                    WhatsApp
+                                  </a>
                                 )}
-                              </span>
+                              </>
                             );
                           })()}
                           <button
-                            className="text-[10px] text-ink-hint hover:text-ink"
+                            className="text-[11px] text-ink-secondary hover:text-ink underline-offset-2 hover:underline"
                             onClick={() => change(r.id, 'pending')}
                             disabled={isPending}
-                            title="Revert to pending"
                           >
-                            ↶
+                            Revert
                           </button>
                         </>
                       )}

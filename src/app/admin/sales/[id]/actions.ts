@@ -4,9 +4,33 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireUser } from '@/lib/auth';
+import { renderToBuffer } from '@react-pdf/renderer';
+import { getResend, resendConfig } from '@/lib/resend';
+import { CreditNotePdf } from '@/lib/pdf/credit-note-pdf';
+import { CancellationNotePdf } from '@/lib/pdf/cancellation-note-pdf';
+import { safeFilename } from '@/lib/safe-filename';
 
 function actorLabel(user: { displayName: string | null; email: string | null }): string {
   return user.displayName ?? user.email ?? 'staff';
+}
+
+/**
+ * Try to send a transactional email — silent best-effort.
+ * Failures are logged but never block the underlying action (return/void).
+ */
+async function trySend(opts: { to: string[]; subject: string; html: string; pdf: { filename: string; content: Buffer } }) {
+  if (!process.env.RESEND_API_KEY) return; // no Resend configured → no-op
+  try {
+    await getResend().emails.send({
+      from: resendConfig.from,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      attachments: [{ filename: opts.pdf.filename, content: opts.pdf.content }],
+    });
+  } catch (err) {
+    console.warn('[email] auto-send failed:', err);
+  }
 }
 
 async function logAudit(
@@ -152,6 +176,74 @@ export async function processReturn(input: z.infer<typeof returnSchema>): Promis
     lines: detailLines,
     notes: v.notes ?? null,
   });
+
+  // ─── Auto-send Credit Note PDF (best-effort, doesn't block the return) ───
+  void (async () => {
+    const { data: parentSale } = await supabase
+      .from('sales')
+      .select('invoice_no, created_at, customer_name, customer_email')
+      .eq('id', v.sale_id)
+      .maybeSingle();
+    if (!parentSale) return;
+
+    // Re-load the joined items for the PDF
+    const { data: returnRows } = await supabase
+      .from('returns')
+      .select(`qty, refund_xof,
+               sale_items!inner(unit_price_xof,
+                 variants!inner(sku, products!inner(name)),
+                 brands!inner(name))`)
+      .eq('batch_id', batch.id);
+    const formatted = ((returnRows ?? []) as any[]).map((r) => ({
+      name: r.sale_items.variants.products.name,
+      brand: r.sale_items.brands.name,
+      sku: r.sale_items.variants.sku,
+      qty: r.qty,
+      unit_price_xof: r.sale_items.unit_price_xof,
+      line_total_xof: r.refund_xof,
+    }));
+
+    const pdfBuffer = await renderToBuffer(
+      CreditNotePdf({
+        creditNoteNo: batch.credit_note_no,
+        invoiceNo: (parentSale as any).invoice_no,
+        invoiceDate: new Date((parentSale as any).created_at).toLocaleDateString('en', { dateStyle: 'medium' }),
+        date: new Date().toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' }),
+        items: formatted,
+        totalRefund,
+        refundMethod: v.refund_method,
+        reason: v.reason,
+        notes: v.notes ?? null,
+        sellerName: v.seller_name,
+        customerName: (parentSale as any).customer_name,
+      }) as any,
+    );
+
+    const cnLabel = `CN-${String(batch.credit_note_no).padStart(4, '0')}`;
+    const recipients = [resendConfig.adminNotify];
+    if ((parentSale as any).customer_email) recipients.push((parentSale as any).customer_email);
+
+    const customerLine = (parentSale as any).customer_name ? ` for ${(parentSale as any).customer_name}` : '';
+    const html = `
+      <div style="font-family:system-ui,-apple-system,sans-serif;font-size:14px;color:#1a1a1a;max-width:520px">
+        <h2 style="font-size:18px;margin:0 0 12px">Credit note ${cnLabel}</h2>
+        <p>A return was processed on invoice <strong>#${(parentSale as any).invoice_no}</strong>${customerLine}.</p>
+        <p>Refund: <strong>${Math.round(totalRefund).toLocaleString('en').replace(/,/g, ' ')} XOF</strong>
+           via ${v.refund_method.replace('_', ' ')}.</p>
+        <p style="color:#888;font-size:12px;margin-top:20px">
+          Reason: ${v.reason}<br/>
+          The credit note PDF is attached.
+        </p>
+      </div>
+    `;
+
+    await trySend({
+      to: recipients,
+      subject: `Tibi Concept Store Cotonou — Credit note ${cnLabel}`,
+      html,
+      pdf: { filename: `tibi-${safeFilename(cnLabel)}.pdf`, content: pdfBuffer },
+    });
+  })();
 
   revalidatePath(`/admin/sales/${v.sale_id}`);
   revalidatePath(`/pos/sales/${v.sale_id}`);
@@ -319,6 +411,67 @@ export async function voidSale(input: z.infer<typeof voidSchema>): Promise<{ ok:
     reason: v.reason,
     restocked: restockedLines,
   });
+
+  // ─── Auto-send Cancellation Note PDF (best-effort) ───
+  void (async () => {
+    const { data: parentSale } = await supabase
+      .from('sales')
+      .select('invoice_no, created_at, customer_name, customer_email, total_xof')
+      .eq('id', v.sale_id)
+      .maybeSingle();
+    if (!parentSale) return;
+
+    const { data: items } = await supabase
+      .from('sale_items')
+      .select('qty, unit_price_xof, variants!inner(sku, products!inner(name)), brands!inner(name)')
+      .eq('sale_id', v.sale_id);
+    const formatted = ((items ?? []) as any[]).map((it) => ({
+      name: it.variants.products.name,
+      brand: it.brands.name,
+      sku: it.variants.sku,
+      qty: it.qty,
+      unit_price_xof: it.unit_price_xof,
+      line_total_xof: it.qty * it.unit_price_xof,
+    }));
+
+    const pdfBuffer = await renderToBuffer(
+      CancellationNotePdf({
+        cancellationNoteNo,
+        invoiceNo: (parentSale as any).invoice_no,
+        invoiceDate: new Date((parentSale as any).created_at).toLocaleDateString('en', { dateStyle: 'medium' }),
+        date: new Date().toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' }),
+        items: formatted,
+        total: (parentSale as any).total_xof,
+        reason: v.reason,
+        voidedBy: actorLabel(user),
+        customerName: (parentSale as any).customer_name,
+      }) as any,
+    );
+
+    const canLabel = `CAN-${String(cancellationNoteNo).padStart(4, '0')}`;
+    const recipients = [resendConfig.adminNotify];
+    if ((parentSale as any).customer_email) recipients.push((parentSale as any).customer_email);
+
+    const customerLine = (parentSale as any).customer_name ? ` for ${(parentSale as any).customer_name}` : '';
+    const html = `
+      <div style="font-family:system-ui,-apple-system,sans-serif;font-size:14px;color:#1a1a1a;max-width:520px">
+        <h2 style="font-size:18px;margin:0 0 12px">Cancellation note ${canLabel}</h2>
+        <p>Invoice <strong>#${(parentSale as any).invoice_no}</strong>${customerLine} has been voided.</p>
+        <p>Total cancelled: <strong>${Math.round((parentSale as any).total_xof).toLocaleString('en').replace(/,/g, ' ')} XOF</strong></p>
+        <p style="color:#888;font-size:12px;margin-top:20px">
+          Reason: ${v.reason}<br/>
+          The cancellation note PDF is attached.
+        </p>
+      </div>
+    `;
+
+    await trySend({
+      to: recipients,
+      subject: `Tibi Concept Store Cotonou — Cancellation note ${canLabel}`,
+      html,
+      pdf: { filename: `tibi-${safeFilename(canLabel)}.pdf`, content: pdfBuffer },
+    });
+  })();
 
   revalidatePath(`/admin/sales/${v.sale_id}`);
   revalidatePath(`/pos/sales/${v.sale_id}`);
