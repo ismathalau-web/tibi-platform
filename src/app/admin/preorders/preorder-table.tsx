@@ -125,23 +125,26 @@ export function PreorderTable({ rows }: { rows: Row[] }) {
                             const waHref = waPhone
                               ? `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`
                               : null;
+                            if (!emailHref && !waHref) return null;
                             return (
-                              <>
+                              <span className="inline-flex items-center gap-1 text-[11px] text-ink-hint">
+                                Notify
                                 {emailHref && (
-                                  <a href={emailHref} className="text-[11px] text-ink-secondary hover:text-ink underline-offset-2 hover:underline">
-                                    ✉ Email
-                                  </a>
+                                  <a href={emailHref} title="Email customer" className="ml-1 hover:text-ink">✉</a>
                                 )}
                                 {waHref && (
-                                  <a href={waHref} target="_blank" rel="noreferrer" className="text-[11px] text-ink-secondary hover:text-ink underline-offset-2 hover:underline">
-                                    ⌬ WhatsApp
-                                  </a>
+                                  <a href={waHref} target="_blank" rel="noreferrer" title="WhatsApp customer" className="hover:text-ink">⌬</a>
                                 )}
-                              </>
+                              </span>
                             );
                           })()}
-                          <button className="text-[11px] text-ink-secondary hover:text-ink" onClick={() => change(r.id, 'pending')} disabled={isPending}>
-                            Revert to pending
+                          <button
+                            className="text-[10px] text-ink-hint hover:text-ink"
+                            onClick={() => change(r.id, 'pending')}
+                            disabled={isPending}
+                            title="Revert to pending"
+                          >
+                            ↶
                           </button>
                         </>
                       )}
