@@ -5,7 +5,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/format';
-import { activateCycle, createCycle, createEmployee, setEmployeeActive, updateRate, updateSetting } from './actions';
+import { activateCycle, createCycle, createEmployee, deleteEmployee, setEmployeeActive, updateRate, updateSetting } from './actions';
 
 interface Rate { id: string; currency_code: string; rate_to_xof: number; updated_at: string }
 interface Cycle { id: string; name: string; start_date: string; end_date: string; is_active: boolean }
@@ -243,9 +243,22 @@ function Employees({ employees }: { employees: Employee[] }) {
               <td>{e.name}</td>
               <td>{e.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>}</td>
               <td>
-                <button className="text-[11px] text-ink-secondary hover:text-ink" onClick={() => run(async () => { await setEmployeeActive(e.id, !e.is_active); })}>
-                  {e.is_active ? 'Deactivate' : 'Reactivate'}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button className="text-[11px] text-ink-secondary hover:text-ink" onClick={() => run(async () => { await setEmployeeActive(e.id, !e.is_active); })}>
+                    {e.is_active ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                  {!e.is_active && (
+                    <button
+                      className="text-[11px] text-ink-hint hover:text-danger-fg"
+                      onClick={() => {
+                        if (!confirm(`Delete ${e.name}? Past sales they made will keep showing their name. This cannot be undone.`)) return;
+                        run(async () => { await deleteEmployee(e.id); });
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
@@ -260,17 +273,47 @@ function Employees({ employees }: { employees: Employee[] }) {
 }
 
 function Notifications() {
+  const adminEmail = 'hello@ismathlauriano.com';
   return (
-    <section className="tibi-card">
-      <h2 className="tibi-section-title mb-3">Notifications</h2>
-      <ul className="text-[12px] text-ink-body flex flex-col gap-2">
-        <li>· Stock alerts — draft prepared in admin, never auto-sent.</li>
-        <li>· Brand dashboard updates — realtime via Supabase.</li>
-        <li>· Cycle-end PDF — generated on request, sent manually.</li>
-        <li>· Payment marked — balance resets; manual trigger only.</li>
-        <li>· Onboarding confirmation — automatic (locked on).</li>
-      </ul>
-    </section>
+    <div className="flex flex-col gap-4">
+      <section className="tibi-card">
+        <h2 className="tibi-section-title mb-3">Automatic emails</h2>
+        <p className="text-[12px] text-ink-hint mb-3">
+          These are sent automatically. Admin always receives them. Customers/brands receive them once your domain is verified on Resend (currently sandbox).
+        </p>
+        <ul className="text-[12px] text-ink-body flex flex-col gap-2">
+          <li>· <strong>Sale completed</strong> → Invoice PDF to admin + customer (if email)</li>
+          <li>· <strong>Return processed</strong> → Credit note PDF to admin + customer (if email)</li>
+          <li>· <strong>Sale voided</strong> → Cancellation note PDF to admin + customer (if email)</li>
+          <li>· <strong>Daily close</strong> → Summary email with all sales of the day to admin</li>
+          <li>· <strong>Onboarding submitted</strong> → Confirmation email to the brand</li>
+        </ul>
+      </section>
+
+      <section className="tibi-card">
+        <h2 className="tibi-section-title mb-3">Manual notifications (drafts)</h2>
+        <p className="text-[12px] text-ink-hint mb-3">
+          Pre-filled messages that open your email or WhatsApp ready to send. You always click Send yourself.
+        </p>
+        <ul className="text-[12px] text-ink-body flex flex-col gap-2">
+          <li>· <strong>Brand restock alert</strong> — when a brand has ≤ 4 items left → Email + WhatsApp drafts on the dashboard banner</li>
+          <li>· <strong>Pre-order ready</strong> — when you mark a pre-order ready → Email + WhatsApp drafts on the pre-order row</li>
+        </ul>
+      </section>
+
+      <section className="tibi-card">
+        <h2 className="tibi-section-title mb-3">Realtime updates</h2>
+        <ul className="text-[12px] text-ink-body flex flex-col gap-2">
+          <li>· <strong>Brand dashboard</strong> → updates live when their items are sold (Supabase Realtime)</li>
+        </ul>
+      </section>
+
+      <section className="tibi-card">
+        <div className="text-[11px] text-ink-hint">
+          Admin notifications go to <strong>{adminEmail}</strong>. Change in Settings → Account or via env var.
+        </div>
+      </section>
+    </div>
   );
 }
 

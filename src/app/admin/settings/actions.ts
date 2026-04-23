@@ -72,3 +72,29 @@ export async function setEmployeeActive(id: string, isActive: boolean) {
   revalidatePath('/admin/settings');
   return { ok: true };
 }
+
+/**
+ * Delete a deactivated employee. Sales reference seller by name (text), not
+ * by FK, so deleting an employee record does NOT break historical sales —
+ * the seller_name on existing sales stays intact.
+ */
+export async function deleteEmployee(id: string) {
+  await requireAdmin();
+  const supabase = createClient();
+
+  // Safety: only allow delete if the employee is already deactivated
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('id, is_active')
+    .eq('id', id)
+    .maybeSingle();
+  if (!emp) return { ok: false, error: 'Employee not found' };
+  if ((emp as any).is_active) {
+    return { ok: false, error: 'Deactivate the employee first before deleting.' };
+  }
+
+  const { error } = await supabase.from('employees').delete().eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/admin/settings');
+  return { ok: true };
+}
