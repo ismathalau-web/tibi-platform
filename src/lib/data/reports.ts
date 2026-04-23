@@ -594,21 +594,32 @@ export interface TodayClose {
   by_seller: Array<{ seller: string; tx: number; total_xof: number }>;
   returns_count: number;
   returns_total_xof: number;
+  /** When > 0, sales from previous days that were never closed (carry-over). */
+  pending_previous_days: Array<{ date: string; tx_count: number; gmv_xof: number }>;
 }
 
+/**
+ * Returns everything that's pending close — today AND any forgotten earlier days.
+ * The view shows them grouped so the user knows what will be locked when clicking
+ * "Close day".
+ */
 export async function getTodayClose(): Promise<TodayClose> {
   const supabase = createClient();
-  const since = new Date();
-  since.setHours(0, 0, 0, 0);
-  const until = new Date();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
 
+  // All UNCLOSED, non-voided sales up to end of today (today + carry-over)
   const { data: sales } = await supabase
     .from('sales')
-    .select('total_xof, payment_method, seller_name')
-    .gte('created_at', since.toISOString())
-    .lte('created_at', until.toISOString());
+    .select('total_xof, payment_method, seller_name, created_at')
+    .lte('created_at', endOfToday.toISOString())
+    .eq('is_locked', false)
+    .is('voided_at', null);
 
-  const safe = (sales ?? []) as Array<{ total_xof: number; payment_method: string; seller_name: string }>;
+  const allUnclosed = (sales ?? []) as Array<{ total_xof: number; payment_method: string; seller_name: string; created_at: string }>;
+  const safe = allUnclosed.filter((s) => new Date(s.created_at) >= todayStart); // today only for the main stats
   const gmv = safe.reduce((s, x) => s + x.total_xof, 0);
   const tx = safe.length;
   const avg = tx > 0 ? Math.round(gmv / tx) : 0;
@@ -620,16 +631,29 @@ export async function getTodayClose(): Promise<TodayClose> {
     bySeller.set(s.seller_name, { tx: cur.tx + 1, total: cur.total + s.total_xof });
   }
 
+  // Bucket previous days that were never closed — shown separately so the user knows
+  const previousByDate = new Map<string, { tx: number; gmv: number }>();
+  for (const s of allUnclosed.filter((x) => new Date(x.created_at) < todayStart)) {
+    const d = new Date(s.created_at).toISOString().slice(0, 10);
+    const cur = previousByDate.get(d) ?? { tx: 0, gmv: 0 };
+    cur.tx += 1;
+    cur.gmv += s.total_xof;
+    previousByDate.set(d, cur);
+  }
+  const pending_previous_days = Array.from(previousByDate.entries())
+    .map(([date, v]) => ({ date, tx_count: v.tx, gmv_xof: v.gmv }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
   const { data: returns } = await supabase
     .from('returns')
     .select('refund_xof')
-    .gte('created_at', since.toISOString())
-    .lte('created_at', until.toISOString());
+    .gte('created_at', todayStart.toISOString())
+    .lte('created_at', endOfToday.toISOString());
   const safeReturns = (returns ?? []) as Array<{ refund_xof: number }>;
   const returnsTotal = safeReturns.reduce((s, r) => s + r.refund_xof, 0);
 
   return {
-    date: since.toISOString(),
+    date: todayStart.toISOString(),
     tx_count: tx,
     gmv_xof: gmv,
     average_basket_xof: avg,
@@ -637,5 +661,6 @@ export async function getTodayClose(): Promise<TodayClose> {
     by_seller: Array.from(bySeller, ([seller, v]) => ({ seller, tx: v.tx, total_xof: v.total })).sort((a, b) => b.total_xof - a.total_xof),
     returns_count: safeReturns.length,
     returns_total_xof: returnsTotal,
+    pending_previous_days,
   };
 }

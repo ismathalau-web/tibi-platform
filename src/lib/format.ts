@@ -16,10 +16,11 @@ export function formatCurrency(amount: number | null | undefined, code: string):
     return new Intl.NumberFormat('en', {
       style: 'currency',
       currency: code,
-      maximumFractionDigits: 2,
+      maximumFractionDigits: 0, // no decimals — boutique reality
+      minimumFractionDigits: 0,
     }).format(amount);
   } catch {
-    return `${amount.toFixed(2)} ${code}`;
+    return `${Math.round(amount).toLocaleString('en')} ${code}`;
   }
 }
 

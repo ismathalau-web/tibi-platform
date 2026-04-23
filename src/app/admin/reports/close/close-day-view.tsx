@@ -54,11 +54,27 @@ export function CloseDayView({ data, alreadyClosed = false }: { data: TodayClose
         </div>
       </header>
 
+      {data.pending_previous_days.length > 0 && (
+        <section className="rounded-card border-hairline border border-warning-fg/40 bg-warning-bg px-4 py-3 text-[13px] text-warning-fg">
+          <div className="font-medium mb-2">
+            Previous days never closed — they will be closed too
+          </div>
+          <ul className="text-[12px] flex flex-col gap-1">
+            {data.pending_previous_days.map((d) => (
+              <li key={d.date} className="flex items-center justify-between gap-3">
+                <span>{formatDate(d.date)}</span>
+                <span className="tabular-nums">{d.tx_count} sale{d.tx_count > 1 ? 's' : ''} · {formatXOF(d.gmv_xof)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Transactions" value={formatNumber(data.tx_count)} />
-        <StatCard label="GMV" value={formatXOF(data.gmv_xof)} />
+        <StatCard label="Transactions today" value={formatNumber(data.tx_count)} />
+        <StatCard label="GMV today" value={formatXOF(data.gmv_xof)} />
         <StatCard label="Avg basket" value={formatXOF(data.average_basket_xof)} />
-        <StatCard label="Returns" value={formatXOF(data.returns_total_xof)} hint={`${data.returns_count} item${data.returns_count === 1 ? '' : 's'}`} />
+        <StatCard label="Returns today" value={formatXOF(data.returns_total_xof)} hint={`${data.returns_count} item${data.returns_count === 1 ? '' : 's'}`} />
       </section>
 
       <section className="tibi-card p-0 overflow-hidden">
