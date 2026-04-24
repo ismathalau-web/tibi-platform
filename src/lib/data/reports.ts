@@ -596,6 +596,12 @@ export interface TodayClose {
   returns_total_xof: number;
   /** When > 0, sales from previous days that were never closed (carry-over). */
   pending_previous_days: Array<{ date: string; tx_count: number; gmv_xof: number }>;
+  /** Cash flow breakdown for drawer reconciliation */
+  cash_sales_xof: number;
+  cash_refunds_xof: number;
+  cash_expenses_xof: number;
+  /** Last recorded cash reconciliation (if any) */
+  last_cash_close: { opening_xof: number; counted_xof: number; variance_xof: number; notes: string | null; closed_by: string | null } | null;
 }
 
 /**
@@ -646,11 +652,48 @@ export async function getTodayClose(): Promise<TodayClose> {
 
   const { data: returns } = await supabase
     .from('returns')
-    .select('refund_xof')
+    .select('refund_xof, refund_method')
     .gte('created_at', todayStart.toISOString())
     .lte('created_at', endOfToday.toISOString());
-  const safeReturns = (returns ?? []) as Array<{ refund_xof: number }>;
+  const safeReturns = (returns ?? []) as Array<{ refund_xof: number; refund_method: string | null }>;
   const returnsTotal = safeReturns.reduce((s, r) => s + r.refund_xof, 0);
+  const cashRefundsToday = safeReturns
+    .filter((r) => r.refund_method === 'cash')
+    .reduce((s, r) => s + r.refund_xof, 0);
+
+  // Cash-specific totals for drawer reconciliation
+  const cashSalesToday = allUnclosed
+    .filter((s) => new Date(s.created_at) >= todayStart)
+    .filter((s) => (s as any).payment_method === 'cash')
+    .reduce((s, x) => s + x.total_xof, 0);
+  // Re-fetch all today's sales to include locked ones (they still contribute to drawer today)
+  const { data: todayAllSales } = await supabase
+    .from('sales')
+    .select('total_xof, payment_method')
+    .gte('created_at', todayStart.toISOString())
+    .lte('created_at', endOfToday.toISOString())
+    .is('voided_at', null);
+  const allCashSalesToday = ((todayAllSales ?? []) as Array<{ total_xof: number; payment_method: string }>)
+    .filter((s) => s.payment_method === 'cash')
+    .reduce((s, x) => s + x.total_xof, 0);
+
+  const todayIso = todayStart.toISOString().slice(0, 10);
+  const { data: todayExpenses } = await supabase
+    .from('expenses')
+    .select('amount_xof, payment_method')
+    .eq('incurred_on', todayIso);
+  const cashExpensesToday = ((todayExpenses ?? []) as Array<{ amount_xof: number; payment_method: string }>)
+    .filter((e) => e.payment_method === 'cash')
+    .reduce((s, e) => s + e.amount_xof, 0);
+
+  // Latest reconciliation for today (if already done)
+  const { data: lastClose } = await supabase
+    .from('cash_closes')
+    .select('opening_xof, counted_xof, variance_xof, notes, closed_by')
+    .eq('close_date', todayIso)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   return {
     date: todayStart.toISOString(),
@@ -662,5 +705,17 @@ export async function getTodayClose(): Promise<TodayClose> {
     returns_count: safeReturns.length,
     returns_total_xof: returnsTotal,
     pending_previous_days,
+    cash_sales_xof: allCashSalesToday,
+    cash_refunds_xof: cashRefundsToday,
+    cash_expenses_xof: cashExpensesToday,
+    last_cash_close: lastClose
+      ? {
+          opening_xof: (lastClose as any).opening_xof,
+          counted_xof: (lastClose as any).counted_xof,
+          variance_xof: (lastClose as any).variance_xof,
+          notes: (lastClose as any).notes,
+          closed_by: (lastClose as any).closed_by,
+        }
+      : null,
   };
 }

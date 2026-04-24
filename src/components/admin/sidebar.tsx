@@ -19,6 +19,7 @@ const items: Array<{ href: string; label: string; badgeKey?: keyof NavCounts; ad
   { href: '/pos', label: 'POS' },
   { href: '/admin/sales', label: 'Sales' },
   { href: '/admin/customers', label: 'Customers' },
+  { href: '/admin/expenses', label: 'Expenses' },
   { href: '/admin/reports', label: 'Reports' },
   { href: '/admin/preorders', label: 'Pre-orders', badgeKey: 'pendingPreorders' },
   { href: '/admin/settings', label: 'Settings', adminOnly: true },

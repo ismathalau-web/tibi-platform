@@ -139,6 +139,27 @@ export default async function AccountingPage({ searchParams }: { searchParams: S
           <StatCard label="Marge brute" value={formatXOF(report.own_label.gross_margin_xof)} />
         </div>
       </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="tibi-section-title">Operating expenses</h2>
+        <p className="text-[12px] text-ink-hint">Charges déduites du revenu pour calculer le profit net.</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+          <StatCard label="Boutique" value={formatXOF(report.expenses.boutique_xof)} />
+          <StatCard label="Café" value={formatXOF(report.expenses.cafe_xof)} />
+          <StatCard label="Shared overhead" value={formatXOF(report.expenses.shared_xof)} />
+          <StatCard label="Total expenses" value={formatXOF(report.expenses.total_xof)} accent="ink" />
+        </div>
+      </section>
+
+      <section className="tibi-card">
+        <h2 className="tibi-section-title mb-3">Net profit</h2>
+        <div className="flex items-baseline gap-3">
+          <span className="tibi-stat">{formatXOF(report.net_profit_xof)}</span>
+          <span className="text-[12px] text-ink-hint">
+            = {formatXOF(report.tibi_taxable_revenue_xof)} (revenu) − {formatXOF(report.expenses.total_xof)} (expenses)
+          </span>
+        </div>
+      </section>
     </div>
   );
 }

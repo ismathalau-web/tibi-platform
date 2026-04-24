@@ -21,6 +21,15 @@ export interface AccountingReport {
     gross_margin_xof: number;
   };
   tibi_taxable_revenue_xof: number;
+  /** Operating expenses incurred during the period, grouped by division */
+  expenses: {
+    boutique_xof: number;
+    cafe_xof: number;
+    shared_xof: number;
+    total_xof: number;
+  };
+  /** Net profit = taxable revenue − total expenses */
+  net_profit_xof: number;
 }
 
 export type Scope = { type: 'cycle'; cycleId?: string } | { type: 'month'; year: number; month: number };
@@ -116,6 +125,23 @@ export async function getAccountingReport(scope: Scope): Promise<AccountingRepor
   const taxable =
     consignCommission + wholesaleSales + ownLabelSales;
 
+  // Operating expenses for the period — grouped by division
+  const sinceDate = since.slice(0, 10);
+  const untilDate = until.slice(0, 10);
+  const { data: expensesData } = await supabase
+    .from('expenses')
+    .select('amount_xof, division')
+    .gte('incurred_on', sinceDate)
+    .lte('incurred_on', untilDate);
+  const expensesList = (expensesData ?? []) as Array<{ amount_xof: number; division: 'boutique' | 'cafe' | 'shared' }>;
+  const expenseTotals = { boutique_xof: 0, cafe_xof: 0, shared_xof: 0, total_xof: 0 };
+  for (const e of expensesList) {
+    expenseTotals[`${e.division}_xof` as keyof typeof expenseTotals] += e.amount_xof;
+    expenseTotals.total_xof += e.amount_xof;
+  }
+
+  const netProfit = taxable - expenseTotals.total_xof;
+
   return {
     scope: { type: scope.type, label, since, until },
     consignment: {
@@ -136,6 +162,8 @@ export async function getAccountingReport(scope: Scope): Promise<AccountingRepor
       gross_margin_xof: ownLabelSales - ownLabelCogs,
     },
     tibi_taxable_revenue_xof: taxable,
+    expenses: expenseTotals,
+    net_profit_xof: netProfit,
   };
 }
 

@@ -90,6 +90,20 @@ export async function GET(req: NextRequest) {
     kv('COGS (production cost)', r.own_label.cogs_xof);
     totalKv('Gross margin', r.own_label.gross_margin_xof);
 
+    // ============ EXPENSES ============
+    header('Operating expenses');
+    lines.push(row('Division', 'Amount (XOF)'));
+    kv('Boutique', r.expenses.boutique_xof);
+    kv('Café', r.expenses.cafe_xof);
+    kv('Shared overhead', r.expenses.shared_xof);
+    totalKv('Total expenses', r.expenses.total_xof);
+
+    // ============ NET PROFIT ============
+    header('Net profit');
+    kv('Tibi taxable revenue', r.tibi_taxable_revenue_xof);
+    kv('Total operating expenses', r.expenses.total_xof);
+    totalKv('Net profit', r.net_profit_xof);
+
     // ============ FOOTER ============
     blank();
     blank();

@@ -4,9 +4,10 @@ import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input, Textarea } from '@/components/ui/input';
 import { formatXOF, formatDate, formatNumber } from '@/lib/format';
 import type { TodayClose } from '@/lib/data/reports';
-import { closeDay, reopenDay } from './actions';
+import { closeDay, reopenDay, saveCashReconciliation } from './actions';
 
 export function CloseDayView({ data, alreadyClosed = false }: { data: TodayClose; alreadyClosed?: boolean }) {
   const [status, setStatus] = useState<'idle' | 'closed' | 'reopened' | 'error'>(alreadyClosed ? 'closed' : 'idle');
@@ -100,9 +101,126 @@ export function CloseDayView({ data, alreadyClosed = false }: { data: TodayClose
       </section>
 
       {err && <Badge tone="danger">{err}</Badge>}
+
+      <CashReconciliationPanel data={data} />
+
       <p className="text-[11px] text-ink-hint">
         Closing the day locks today&rsquo;s sales and emails a PDF summary to {process.env.NEXT_PUBLIC_APP_URL ? 'the admin address.' : 'hello@ismathlauriano.com.'}
       </p>
     </div>
+  );
+}
+
+function CashReconciliationPanel({ data }: { data: TodayClose }) {
+  const [opening, setOpening] = useState(data.last_cash_close?.opening_xof ? String(data.last_cash_close.opening_xof) : '');
+  const [counted, setCounted] = useState(data.last_cash_close?.counted_xof ? String(data.last_cash_close.counted_xof) : '');
+  const [notes, setNotes] = useState(data.last_cash_close?.notes ?? '');
+  const [result, setResult] = useState<{ expected: number; variance: number } | null>(
+    data.last_cash_close
+      ? { expected: data.last_cash_close.counted_xof - data.last_cash_close.variance_xof, variance: data.last_cash_close.variance_xof }
+      : null,
+  );
+  const [err, setErr] = useState<string | null>(null);
+  const [isPending, start] = useTransition();
+
+  const openingNum = parseInt(opening || '0', 10) || 0;
+  const countedNum = parseInt(counted || '0', 10) || 0;
+  const expectedPreview = openingNum + data.cash_sales_xof - data.cash_refunds_xof - data.cash_expenses_xof;
+  const variancePreview = countedNum > 0 ? countedNum - expectedPreview : null;
+
+  function submit() {
+    setErr(null);
+    if (openingNum < 0) return setErr('Opening cash must be 0 or more.');
+    if (countedNum <= 0) return setErr('Counted cash required.');
+    start(async () => {
+      const res = await saveCashReconciliation({
+        opening_xof: openingNum,
+        counted_xof: countedNum,
+        notes: notes.trim() || null,
+      });
+      if (!res.ok) { setErr(res.error ?? 'Save failed'); return; }
+      setResult({ expected: res.expected_xof ?? 0, variance: res.variance_xof ?? 0 });
+    });
+  }
+
+  const varianceBig = Math.abs(variancePreview ?? 0) > 5000;
+
+  return (
+    <section className="tibi-card flex flex-col gap-4">
+      <div>
+        <h2 className="tibi-section-title">Cash drawer reconciliation</h2>
+        <p className="text-[12px] text-ink-hint mt-1">
+          Count the physical cash in the drawer and check that it matches what the system expects.
+          Independent from the daily close — you can reconcile anytime.
+        </p>
+      </div>
+
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="tibi-card !p-4">
+          <div className="tibi-label">Cash sales today</div>
+          <div className="text-[16px] font-medium tabular-nums">+{formatXOF(data.cash_sales_xof)}</div>
+        </div>
+        <div className="tibi-card !p-4">
+          <div className="tibi-label">Cash refunds</div>
+          <div className="text-[16px] font-medium tabular-nums">−{formatXOF(data.cash_refunds_xof)}</div>
+        </div>
+        <div className="tibi-card !p-4">
+          <div className="tibi-label">Cash expenses</div>
+          <div className="text-[16px] font-medium tabular-nums">−{formatXOF(data.cash_expenses_xof)}</div>
+        </div>
+        <div className="tibi-card !p-4">
+          <div className="tibi-label">Expected cash (+ opening)</div>
+          <div className="text-[16px] font-medium tabular-nums">{formatXOF(expectedPreview)}</div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <Input
+          label="Opening cash this morning"
+          type="number"
+          min="0"
+          step="500"
+          value={opening}
+          onChange={(e) => setOpening(e.target.value)}
+        />
+        <Input
+          label="Counted cash (actual)"
+          type="number"
+          min="0"
+          step="500"
+          value={counted}
+          onChange={(e) => setCounted(e.target.value)}
+        />
+        <div>
+          <div className="tibi-label mb-1.5">Variance</div>
+          <div className={`tibi-input flex items-center justify-end font-medium tabular-nums ${variancePreview == null ? 'text-ink-hint' : varianceBig ? 'text-danger-fg' : 'text-ink'}`}>
+            {variancePreview == null ? '—' : variancePreview >= 0 ? `+${formatXOF(variancePreview)}` : `−${formatXOF(Math.abs(variancePreview))}`}
+          </div>
+        </div>
+      </div>
+
+      <Textarea
+        label="Notes (optional)"
+        rows={2}
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Why the variance? e.g. error on invoice #1234, or cash taken for X"
+      />
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button variant="secondary" onClick={submit} disabled={isPending || countedNum <= 0}>
+          {isPending ? 'Saving…' : data.last_cash_close ? 'Update reconciliation' : 'Save reconciliation'}
+        </Button>
+        {result && (
+          <Badge tone={Math.abs(result.variance) > 5000 ? 'danger' : Math.abs(result.variance) > 0 ? 'warning' : 'success'}>
+            {result.variance === 0 ? 'Perfect match' : result.variance > 0 ? `+${formatXOF(result.variance)} (over)` : `${formatXOF(result.variance)} (short)`}
+          </Badge>
+        )}
+        {err && <Badge tone="danger">{err}</Badge>}
+        {data.last_cash_close && !result && (
+          <span className="text-[11px] text-ink-hint">Last saved by {data.last_cash_close.closed_by ?? 'staff'}</span>
+        )}
+      </div>
+    </section>
   );
 }

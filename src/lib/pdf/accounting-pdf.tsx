@@ -67,7 +67,24 @@ export function AccountingPdf({ report, generatedOn }: { report: AccountingRepor
           <View style={styles.row}><Text style={styles.label}>Marge brute</Text><Text>{fmt(report.own_label.gross_margin_xof)}</Text></View>
         </View>
 
-        <Text style={styles.footer}>hello@ismathlauriano.com · Cotonou, Bénin</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Operating expenses</Text>
+          <Text style={styles.hint}>Charges déduites du revenu pour calculer le profit net.</Text>
+          <View style={styles.row}><Text style={styles.label}>Boutique</Text><Text>{fmt(report.expenses.boutique_xof)}</Text></View>
+          <View style={styles.row}><Text style={styles.label}>Café</Text><Text>{fmt(report.expenses.cafe_xof)}</Text></View>
+          <View style={styles.row}><Text style={styles.label}>Shared overhead</Text><Text>{fmt(report.expenses.shared_xof)}</Text></View>
+          <View style={styles.row}><Text style={styles.label}>Total</Text><Text style={styles.total}>{fmt(report.expenses.total_xof)}</Text></View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Net profit</Text>
+          <Text style={styles.total}>{fmt(report.net_profit_xof)}</Text>
+          <Text style={[styles.hint, { marginTop: 4 }]}>
+            = {fmt(report.tibi_taxable_revenue_xof)} (revenu) − {fmt(report.expenses.total_xof)} (expenses)
+          </Text>
+        </View>
+
+        <Text style={styles.footer}>pos@tibiconceptstore.com · Cotonou, Bénin</Text>
       </Page>
     </Document>
   );

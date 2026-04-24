@@ -60,6 +60,7 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
   const [discountReason, setDiscountReason] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paymentOther, setPaymentOther] = useState('');
+  const [cashReceived, setCashReceived] = useState('');
   const [sellerName, setSellerName] = useState(employees[0]?.name ?? '');
   const [customerName, setCustomerName] = useState(preorderSeed?.customer_name ?? '');
   const [customerEmail, setCustomerEmail] = useState(preorderSeed?.customer_email ?? '');
@@ -163,6 +164,10 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
     if (!sellerName) return setErr('Select a seller.');
     if (discountNum > 0 && !discountReason.trim()) return setErr('Reason required for discount.');
     if (paymentMethod === 'other' && !paymentOther.trim()) return setErr('Please specify the payment method.');
+    if (paymentMethod === 'cash') {
+      const cr = parseInt(cashReceived || '0', 10) || 0;
+      if (cr < total) return setErr(`Cash received (${formatXOF(cr)}) is less than total (${formatXOF(total)}).`);
+    }
 
     start(async () => {
       const res = await createSale({
@@ -175,6 +180,7 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
         discount_reason: discountNum > 0 ? discountReason : null,
         payment_method: paymentMethod,
         payment_other: paymentMethod === 'other' ? paymentOther : null,
+        cash_received_xof: paymentMethod === 'cash' ? (parseInt(cashReceived || '0', 10) || total) : null,
         seller_name: sellerName,
         customer_name: customerName || null,
         customer_email: customerEmail || null,
@@ -190,6 +196,7 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
       setDiscount('');
       setDiscountReason('');
       setPaymentOther('');
+      setCashReceived('');
       setNotes('');
       // Prefill the send-to-customer email field with the customer's email if provided
       if (customerEmail) setEmailRecipient(customerEmail);
@@ -426,6 +433,30 @@ export function PosScreen({ catalog, employees, preorderSeed, todayClosed }: Pro
               <Input label="Specify" value={paymentOther} onChange={(e) => setPaymentOther(e.target.value)} />
             ) : <div />}
           </div>
+          {paymentMethod === 'cash' && total > 0 && (() => {
+            const cr = parseInt(cashReceived || '0', 10) || 0;
+            const change = cr - total;
+            const insufficient = cr > 0 && cr < total;
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Cash received"
+                  type="number"
+                  min="0"
+                  step="500"
+                  placeholder={String(total)}
+                  value={cashReceived}
+                  onChange={(e) => setCashReceived(e.target.value)}
+                />
+                <div>
+                  <div className="tibi-label mb-1.5">Change to return</div>
+                  <div className={`tibi-input flex items-center justify-end font-medium tabular-nums ${insufficient ? 'text-danger-fg' : change > 0 ? 'text-ink' : 'text-ink-hint'}`}>
+                    {insufficient ? 'Insufficient' : change > 0 ? formatXOF(change) : '—'}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="grid grid-cols-2 gap-3">
             <Select label="Seller" value={sellerName} onChange={(e) => setSellerName(e.target.value)}>
