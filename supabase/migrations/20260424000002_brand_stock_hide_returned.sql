@@ -7,7 +7,11 @@
 -- Historical sales stay intact (sale_items reference the variant row).
 -- =============================================================================
 
-create or replace function public.brand_stock(p_token text)
+-- Drop first because PG refuses to change a function's return type
+-- via CREATE OR REPLACE, even when the signature is identical.
+drop function if exists public.brand_stock(text);
+
+create function public.brand_stock(p_token text)
 returns table (
   variant_id uuid,
   product_name text,
