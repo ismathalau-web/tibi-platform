@@ -1,7 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
+// Public paths where we DON'T need to refresh the session — this avoids a
+// Supabase round-trip on cold-start for public-facing routes (login, brand
+// dashboards via token, onboarding via token, auth callbacks, PWA bits).
+const PUBLIC_PREFIXES = ['/login', '/brand/', '/onboarding/', '/auth/', '/offline', '/api/brand/', '/api/onboarding/'];
+
 export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  if (PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p))) {
+    return NextResponse.next({ request: { headers: req.headers } });
+  }
+
   let res = NextResponse.next({ request: { headers: req.headers } });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
@@ -26,7 +36,17 @@ export async function middleware(req: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
+  // Best-effort session refresh — never block the page if Supabase is slow.
+  // Edge functions on Netlify have tight timeouts; auth will be re-checked
+  // by requireUser/requireAdmin in the page/layout anyway.
+  try {
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('auth timeout')), 1500)),
+    ]);
+  } catch {
+    // ignore — page-level auth check will redirect if session is truly invalid
+  }
   return res;
 }
 
