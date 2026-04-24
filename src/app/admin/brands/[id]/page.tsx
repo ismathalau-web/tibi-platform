@@ -7,6 +7,7 @@ import { BrandForm } from '../brand-form';
 import { ShareLinkPanel } from './share-link-panel';
 import { CommissionPanel } from './commission-panel';
 import { PaymentsPanel } from './payments-panel';
+import { CycleClosePanel } from './cycle-close-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,27 @@ export default async function BrandDetail({ params }: { params: { id: string } }
     const paid = ((payments ?? []) as Array<{ amount_xof: number }>).reduce((s, p) => s + p.amount_xof, 0);
     balanceDueXof = Math.max(0, gross - paid);
   }
+
+  // Unsold variants (stock_qty > 0, not yet returned) for cycle-close panel
+  const { data: unsoldRaw } = brand.type === 'consignment'
+    ? await supabase
+        .from('variants')
+        .select('id, sku, size, color, retail_price_xof, stock_qty, products!inner(name)')
+        .eq('brand_id', brand.id)
+        .eq('status', 'active')
+        .is('returned_at', null)
+        .gt('stock_qty', 0)
+        .order('created_at', { ascending: true })
+    : { data: [] as any[] };
+  const unsold = ((unsoldRaw ?? []) as any[]).map((v) => ({
+    id: v.id,
+    product_name: v.products.name,
+    sku: v.sku,
+    size: v.size,
+    color: v.color,
+    retail_price_xof: v.retail_price_xof,
+    stock_qty: v.stock_qty,
+  }));
 
   const { data: paymentHistoryRaw } = await supabase
     .from('brand_payments')
@@ -86,6 +108,16 @@ export default async function BrandDetail({ params }: { params: { id: string } }
 
       {brand.type === 'consignment' && brand.share_token && (
         <ShareLinkPanel brandId={brand.id} token={brand.share_token} />
+      )}
+
+      {brand.type === 'consignment' && (
+        <CycleClosePanel
+          brandId={brand.id}
+          brandName={brand.name}
+          shareToken={brand.share_token}
+          cycleName={cycle?.name ?? null}
+          unsold={unsold}
+        />
       )}
 
       <section className="tibi-card">

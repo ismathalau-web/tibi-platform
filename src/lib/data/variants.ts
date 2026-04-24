@@ -16,6 +16,7 @@ export async function listVariants(filters?: {
   let q = supabase
     .from('variants')
     .select('*, product:products(name, category), brand:brands!inner(id, name, type)')
+    .is('returned_at', null) // hide end-of-cycle returned variants from active stock
     .order('created_at', { ascending: false });
   if (filters?.brandId) q = q.eq('brand_id', filters.brandId);
   if (filters?.category) q = q.eq('product.category', filters.category);

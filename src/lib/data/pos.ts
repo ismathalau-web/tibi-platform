@@ -31,6 +31,7 @@ export async function loadPosCatalog(): Promise<PosItem[]> {
     )
     .eq('status', 'active')
     .eq('brands.is_active', true)
+    .is('returned_at', null) // hide end-of-cycle returned variants
     .order('created_at', { ascending: false });
   if (error) throw error;
 

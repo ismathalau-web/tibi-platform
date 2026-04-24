@@ -42,19 +42,40 @@ async function getYesterdayUnclosed(supabase: ReturnType<typeof createClient>): 
 
 export default async function AdminDashboard() {
   const supabase = createClient();
-  const [user, stats, rows, cycle, pendingMovementsRes, yesterdayUnclosed] = await Promise.all([
+  const [user, stats, rows, cycle, pendingMovementsRes, yesterdayUnclosed, settingsRes] = await Promise.all([
     getCurrentUser(),
     getDashboardStats(),
     listBrandsWithStats(),
     getActiveCycle(),
     supabase.from('stock_movements').select('id, qty_sent, qty_confirmed, brands!inner(name)'),
     getYesterdayUnclosed(supabase),
+    supabase.from('settings').select('key, value').in('key', ['brand_payout_day']),
   ]);
+
+  // Brand payout day reminder — fire on J-2, J-1, J
+  const settingsMap: Record<string, unknown> = {};
+  for (const s of (settingsRes.data ?? []) as Array<{ key: string; value: unknown }>) {
+    settingsMap[s.key] = s.value;
+  }
+  const payoutDay = Number(settingsMap['brand_payout_day'] ?? 0);
+  const payoutReminder: { daysUntil: number; brandsOwed: number; totalDueXof: number } | null = (() => {
+    if (!payoutDay || payoutDay < 1 || payoutDay > 28) return null;
+    const today = new Date();
+    const currentDay = today.getDate();
+    const daysUntil = payoutDay - currentDay;
+    // Reminder window: J-2, J-1, J
+    if (daysUntil < 0 || daysUntil > 2) return null;
+    const brandsOwed = rows.filter((r) => r.brand.type === 'consignment' && r.balance_due_xof > 0);
+    if (brandsOwed.length === 0) return null;
+    const totalDueXof = brandsOwed.reduce((s, r) => s + r.balance_due_xof, 0);
+    return { daysUntil, brandsOwed: brandsOwed.length, totalDueXof };
+  })();
 
   const today = new Intl.DateTimeFormat('en', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 
   let cyclePct = 0;
   let daysLeft = 0;
+  let cycleEndingSoon = false;
   if (cycle) {
     const start = new Date(cycle.start_date);
     const end = new Date(cycle.end_date);
@@ -63,6 +84,8 @@ export default async function AdminDashboard() {
     const elapsed = daysBetween(start, now);
     cyclePct = total > 0 ? Math.max(0, Math.min(100, (elapsed / total) * 100)) : 0;
     daysLeft = Math.max(0, daysBetween(now, end));
+    // Reminder when cycle is about to end (≤ 7 days left) or overdue
+    cycleEndingSoon = daysLeft <= 7;
   }
 
   // Per-brand total stock alert (sum of all variants). Tibi receives 1-2
@@ -81,8 +104,39 @@ export default async function AdminDashboard() {
       </header>
 
       {/* Alert banners */}
-      {(yesterdayUnclosed || pendingReceptions.length > 0 || restockAlerts.length > 0) && (
+      {(cycleEndingSoon || payoutReminder || yesterdayUnclosed || pendingReceptions.length > 0 || restockAlerts.length > 0) && (
         <div className="flex flex-col gap-2">
+          {cycleEndingSoon && cycle && (
+            <Link href="/admin/brands" className="block">
+              <div className="rounded-card border-hairline border border-warning-fg/40 bg-warning-bg px-4 py-3 text-[13px] text-warning-fg flex items-center justify-between gap-3 hover:opacity-90">
+                <span>
+                  <strong>
+                    {daysLeft === 0 ? 'Cycle ends today' : daysLeft === 1 ? 'Cycle ends tomorrow' : `Cycle ends in ${daysLeft} days`}
+                  </strong>
+                  {' · '}Review unsold stock + plan end-of-cycle returns with each brand.
+                </span>
+                <span className="text-[11px]">Brands →</span>
+              </div>
+            </Link>
+          )}
+          {payoutReminder && (
+            <Link href="/admin/brands" className="block">
+              <div className="rounded-card border-hairline border border-accent/40 bg-accent/5 px-4 py-3 text-[13px] text-ink flex items-center justify-between gap-3 hover:opacity-90">
+                <span>
+                  <strong>
+                    {payoutReminder.daysUntil === 0
+                      ? 'Today is brand payout day'
+                      : payoutReminder.daysUntil === 1
+                        ? 'Brand payout day is tomorrow'
+                        : `Brand payout day is in ${payoutReminder.daysUntil} days`}
+                  </strong>
+                  {' · '}
+                  {payoutReminder.brandsOwed} brand{payoutReminder.brandsOwed > 1 ? 's' : ''} owed {formatXOF(payoutReminder.totalDueXof)}
+                </span>
+                <span className="text-[11px]">Review brands →</span>
+              </div>
+            </Link>
+          )}
           {yesterdayUnclosed && (
             <Link href="/admin/reports/close" className="block">
               <div className="rounded-card border-hairline border border-danger-fg/40 bg-danger-bg px-4 py-3 text-[13px] text-danger-fg flex items-center justify-between gap-3 hover:opacity-90">

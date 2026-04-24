@@ -175,3 +175,45 @@ export async function regenerateShareToken(brandId: string): Promise<FormState> 
   revalidatePath(`/admin/brands/${brandId}`);
   return { ok: true };
 }
+
+/**
+ * Close the current cycle for a brand by marking selected variants as
+ * returned to the brand. Those variants:
+ *  - get returned_at = now() (hidden from POS + brand dashboard stock)
+ *  - keep historical sales intact (sale_items reference the row)
+ * The variants that AREN'T included in this call stay active → they
+ * automatically roll over into the next cycle (no action needed).
+ */
+export async function returnVariantsToBrand(params: {
+  brand_id: string;
+  variant_ids: string[];
+}): Promise<{ ok: boolean; error?: string; count?: number }> {
+  await requireAdmin();
+  if (params.variant_ids.length === 0) {
+    return { ok: false, error: 'Select at least one variant.' };
+  }
+  const supabase = createClient();
+
+  // Safety: only allow returning variants that belong to the brand
+  const { data: check } = await supabase
+    .from('variants')
+    .select('id, brand_id, stock_qty')
+    .eq('brand_id', params.brand_id)
+    .in('id', params.variant_ids);
+  const safe = (check ?? []) as Array<{ id: string; brand_id: string; stock_qty: number }>;
+  if (safe.length !== params.variant_ids.length) {
+    return { ok: false, error: 'Some variants do not belong to this brand.' };
+  }
+
+  const { error } = await supabase
+    .from('variants')
+    .update({ returned_at: new Date().toISOString(), stock_qty: 0 })
+    .in('id', params.variant_ids);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/admin/brands/${params.brand_id}`);
+  revalidatePath('/admin');
+  revalidatePath('/stock');
+  revalidatePath('/pos');
+  return { ok: true, count: params.variant_ids.length };
+}

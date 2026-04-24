@@ -14,6 +14,7 @@ interface Employee { id: string; name: string; is_active: boolean }
 const sections = [
   { id: 'rates', label: 'Exchange rates' },
   { id: 'cycles', label: 'Cycles' },
+  { id: 'payments', label: 'Payments' },
   { id: 'labels', label: 'Labels' },
   { id: 'employees', label: 'Employees' },
   { id: 'notifications', label: 'Notifications' },
@@ -44,6 +45,7 @@ export function SettingsClient({ rates, cycles, employees, settings }: {
 
       {section === 'rates' && <ExchangeRates rates={rates} />}
       {section === 'cycles' && <Cycles cycles={cycles} initialThreshold={Number(settings['alert_threshold'] ?? 5)} />}
+      {section === 'payments' && <Payments initialPayoutDay={Number(settings['brand_payout_day'] ?? 5)} />}
       {section === 'labels' && <Labels settings={settings} />}
       {section === 'employees' && <Employees employees={employees} />}
       {section === 'notifications' && <Notifications />}
@@ -268,6 +270,53 @@ function Employees({ employees }: { employees: Employee[] }) {
         <div className="flex-1"><Input label="New employee name" value={name} onChange={(e) => setName(e.target.value)} /></div>
         <Button disabled={isPending || !name.trim()} onClick={() => run(async () => { await createEmployee(name); setName(''); })}>Add</Button>
       </div>
+    </section>
+  );
+}
+
+function Payments({ initialPayoutDay }: { initialPayoutDay: number }) {
+  const [day, setDay] = useState(String(initialPayoutDay));
+  const [isPending, run] = useTransition();
+  const [saved, setSaved] = useState(false);
+
+  function save() {
+    const n = Math.max(1, Math.min(28, Number(day) || 5));
+    run(async () => {
+      await updateSetting('brand_payout_day', n);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    });
+  }
+
+  return (
+    <section className="tibi-card flex flex-col gap-4">
+      <div>
+        <h2 className="tibi-section-title">Brand payout day</h2>
+        <p className="text-[12px] text-ink-hint mt-1">
+          Day of the month when you pay brands. The dashboard will remind you 2 days before.
+          You can still record a payment any time outside this date — this is just a reminder.
+        </p>
+      </div>
+      <div className="flex items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label className="tibi-label">Day of month (1 – 28)</label>
+          <input
+            type="number"
+            min="1"
+            max="28"
+            className="tibi-input h-9 w-28 text-right"
+            value={day}
+            onChange={(e) => setDay(e.target.value)}
+          />
+        </div>
+        <Button variant="secondary" className="h-9" onClick={save} disabled={isPending}>
+          {isPending ? 'Saving…' : 'Save'}
+        </Button>
+        {saved && <Badge tone="success">Saved</Badge>}
+      </div>
+      <p className="text-[11px] text-ink-hint">
+        Capped at 28 to avoid edge cases (February, 30-day months). Recommended: early in the month so brands see cash quickly after cycle close.
+      </p>
     </section>
   );
 }
